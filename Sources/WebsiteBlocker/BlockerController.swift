@@ -10,8 +10,7 @@ final class BlockerController: ObservableObject {
     @Published private(set) var lastErrorMessage: String?
 
     private let domainStore = DomainStore()
-    private let hostsFileController = HostsFileController()
-    private let packetFilterController = PacketFilterController()
+    private let systemConfigurationController = SystemConfigurationController()
 
     func load() throws {
         blockedDomains = try domainStore.load()
@@ -38,16 +37,14 @@ final class BlockerController: ObservableObject {
     func reconcileHostsFile() throws {
         isApplying = true
         defer { isApplying = false }
-        try packetFilterController.apply(blockedDomains)
-        try hostsFileController.apply(blockedDomains)
+        try systemConfigurationController.apply(blockedDomains)
         refreshStatus()
     }
 
     func endProtection() throws {
         isApplying = true
         defer { isApplying = false }
-        try packetFilterController.remove()
-        try hostsFileController.apply([])
+        try systemConfigurationController.apply([])
         blockedDomains = []
         try domainStore.save([])
         refreshStatus()
@@ -67,15 +64,14 @@ final class BlockerController: ObservableObject {
         defer { isApplying = false }
 
         do {
-            try packetFilterController.apply(blockedDomains)
-            try hostsFileController.apply(blockedDomains)
+            try systemConfigurationController.apply(blockedDomains)
             try domainStore.save(blockedDomains)
             refreshStatus()
         } catch {
             if previousDomains.isEmpty {
-                try? packetFilterController.remove()
+                try? systemConfigurationController.apply([])
             } else {
-                try? packetFilterController.apply(previousDomains)
+                try? systemConfigurationController.apply(previousDomains)
             }
             blockedDomains = previousDomains
             throw error

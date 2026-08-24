@@ -24,6 +24,12 @@ struct HostsFileController {
     }
 
     func apply(_ domains: [String]) throws {
+        let stagingURL = try makeStagingFile(for: domains)
+        defer { try? fileManager.removeItem(at: stagingURL) }
+        try copyWithAdministratorPrivileges(command: installCommand(from: stagingURL))
+    }
+
+    func makeStagingFile(for domains: [String]) throws -> URL {
         guard fileManager.fileExists(atPath: hostsURL.path) else { throw HostsError.noHostsFile }
         guard let existingContents = try? String(contentsOf: hostsURL, encoding: .utf8) else {
             throw HostsError.unreadableHostsFile
@@ -43,9 +49,12 @@ struct HostsFileController {
         }
         output += "\n"
 
-        let stagingURL = try makeStagingFile(contents: output)
-        defer { try? fileManager.removeItem(at: stagingURL) }
-        try copyWithAdministratorPrivileges(from: stagingURL)
+        return try makeStagingFile(contents: output)
+    }
+
+    func installCommand(from stagingURL: URL) -> String {
+        let quotedStagingPath = shellQuote(stagingURL.path)
+        return "/usr/bin/install -m 644 \(quotedStagingPath) /etc/hosts && /usr/bin/dscacheutil -flushcache && (/usr/bin/killall -HUP mDNSResponder >/dev/null 2>&1 || true)"
     }
 
     private func removeManagedBlock(from contents: String) -> String {
@@ -72,9 +81,7 @@ struct HostsFileController {
         return stagingURL
     }
 
-    private func copyWithAdministratorPrivileges(from stagingURL: URL) throws {
-        let quotedStagingPath = shellQuote(stagingURL.path)
-        let command = "/usr/bin/install -m 644 \(quotedStagingPath) /etc/hosts && /usr/bin/dscacheutil -flushcache && (/usr/bin/killall -HUP mDNSResponder >/dev/null 2>&1 || true)"
+    private func copyWithAdministratorPrivileges(command: String) throws {
         let source = "do shell script \"\(escapeForAppleScript(command))\" with administrator privileges"
         var error: NSDictionary?
         NSAppleScript(source: source)?.executeAndReturnError(&error)

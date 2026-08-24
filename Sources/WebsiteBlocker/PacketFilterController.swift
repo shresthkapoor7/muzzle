@@ -19,31 +19,29 @@ struct PacketFilterController {
         }
     }
 
-    func apply(_ domains: [String]) throws {
-        guard !domains.isEmpty else {
-            try remove()
-            return
-        }
-
+    func makeStagingAnchor(for domains: [String]) throws -> URL {
         let addresses = resolveAddresses(for: domains)
         guard !addresses.ipv4.isEmpty || !addresses.ipv6.isEmpty else {
             throw PacketFilterError.noResolvedAddresses
         }
         let anchorRules = rules(ipv4Addresses: addresses.ipv4, ipv6Addresses: addresses.ipv6)
-        let staging = try makeStagingAnchor(rules: anchorRules)
-        defer {
-            try? fileManager.removeItem(at: staging.deletingLastPathComponent())
-        }
-
-        try install(anchor: staging)
+        return try makeStagingAnchor(rules: anchorRules)
     }
 
-    func remove() throws {
-        let command = """
+    func installCommand(anchor: URL) -> String {
+        """
+        /usr/bin/install -d -m 755 /etc/pf.anchors && \\
+        /usr/bin/install -m 600 \(shellQuote(anchor.path)) \(shellQuote(anchorURL.path)) && \\
+        /sbin/pfctl -a \(anchorName) -f \(shellQuote(anchorURL.path)) && \\
+        (/sbin/pfctl -e >/dev/null 2>&1 || true)
+        """
+    }
+
+    func removeCommand() -> String {
+        """
         (/sbin/pfctl -a \(anchorName) -F all >/dev/null 2>&1 || true) && \\
         /bin/rm -f \(shellQuote(anchorURL.path))
         """
-        try runWithAdministratorPrivileges(command)
     }
 
     func rules(ipv4Addresses: [String], ipv6Addresses: [String]) -> String {
@@ -123,33 +121,8 @@ struct PacketFilterController {
         return anchorStagingURL
     }
 
-    private func install(anchor: URL) throws {
-        let command = """
-        /usr/bin/install -d -m 755 /etc/pf.anchors && \\
-        /usr/bin/install -m 600 \(shellQuote(anchor.path)) \(shellQuote(anchorURL.path)) && \\
-        /sbin/pfctl -a \(anchorName) -f \(shellQuote(anchorURL.path)) && \\
-        (/sbin/pfctl -e >/dev/null 2>&1 || true)
-        """
-        try runWithAdministratorPrivileges(command)
-    }
-
-    private func runWithAdministratorPrivileges(_ command: String) throws {
-        let source = "do shell script \"\(escapeForAppleScript(command))\" with administrator privileges"
-        var error: NSDictionary?
-        NSAppleScript(source: source)?.executeAndReturnError(&error)
-        if let error {
-            let details = error[NSAppleScript.errorMessage] as? String ?? "Administrator access was cancelled or denied."
-            throw PacketFilterError.privilegeCommandFailed(details)
-        }
-    }
-
     private func shellQuote(_ value: String) -> String {
         "'\(value.replacingOccurrences(of: "'", with: "'\\\"'\\\"'"))'"
     }
 
-    private func escapeForAppleScript(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-    }
 }
