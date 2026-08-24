@@ -12,11 +12,23 @@ scripts/build-app.sh
 open "dist/Website Blocker.app"
 ```
 
+Before starting protection, put your Poke bearer token in the project’s local `.env` file:
+
+```sh
+POKE_API_KEY=your-token-here
+```
+
+The file is ignored by Git. When a session key is created, Website Blocker posts this JSON to Poke and never displays or copies the code locally:
+
+```json
+{"event":"lock_key","key":"123456","date":"2026-08-24"}
+```
+
 Website Blocker is a menu-bar agent. It adds a small outlined circle to the macOS menu bar when inactive and a raised-hand icon when it is blocking websites. It does not appear as a regular app in the Dock or Force Quit Applications list. Click the icon and choose **Start blocking…** to add the first domain, or **Manage protected websites…** while it is active. The protected list is read-only during a session; the one-time session key is required to end protection and remove its hosts-file entries.
 
 Use `open "dist/Website Blocker.app"` to launch it. Do not use `open -n`: that option explicitly asks macOS to create a second instance. The bundle also declares itself single-instance, so a normal launch focuses the existing menu-bar app.
 
-The app has no ordinary Quit item and ignores direct quit requests such as Command-Q. It displays a pasteable one-time six-digit session code only when protection becomes active (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove this app’s hosts-file entries and exit normally. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
+The app has no ordinary Quit item and ignores direct quit requests such as Command-Q. It sends the one-time six-digit session code to Poke when protection becomes active (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove this app’s hosts-file entries and exit normally. If Poke delivery fails, protection remains active and the error explains how to fix the delivery configuration. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
 
 ## How blocking works
 

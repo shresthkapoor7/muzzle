@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let blocker = BlockerController()
+    private let pokeClient = PokeClient()
     private var statusItemController: StatusItemController?
     private var managementWindowController: ManagementWindowController?
     private var unlockKey: String = ""
@@ -47,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !blocker.blockedDomains.isEmpty {
             DispatchQueue.main.async { [weak self] in
-                self?.showUnlockKey()
+                self?.deliverUnlockKeyToPoke()
             }
         }
     }
@@ -60,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if managementWindowController == nil {
             managementWindowController = ManagementWindowController(
                 blocker: blocker,
-                onProtectionStarted: { [weak self] in self?.showUnlockKey() }
+                onProtectionStarted: { [weak self] in self?.deliverUnlockKeyToPoke() }
             )
         }
         managementWindowController?.showWindow(nil)
@@ -68,19 +69,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func showUnlockKey() {
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "Your session unlock key"
-        alert.informativeText = "Store this six-digit code somewhere safe. It is required to end protection normally, and it is kept only for this running session.\n\n\(unlockKey)"
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Copy key")
-        alert.addButton(withTitle: "Done")
-
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(unlockKey, forType: .string)
+    private func deliverUnlockKeyToPoke() {
+        pokeClient.sendLockKey(unlockKey) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, case let .failure(error) = result else { return }
+                self.blocker.present(error: error)
+            }
         }
     }
 
