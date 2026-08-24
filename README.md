@@ -40,8 +40,8 @@ The PF layer means Chrome’s Secure DNS/DoH cannot bypass the block: Chrome may
 
 ## Safety and recovery
 
-- The app shows the session key at startup and lets you reveal it again while it is running.
+- Muzzle sends the session key to Poke when protection starts; it never displays or copies the key locally.
 - Normal exit removes only the `MUZZLE` section it created.
 - If the process is force-quit, reopening the app lets you manage its prior saved list again.
 - The managed hosts-file section is human-readable and can be removed manually by an administrator if needed.
-- If a running session’s code is lost, run `"dist/Muzzle.app/Contents/MacOS/Muzzle" --remove-muzzle-hosts` to remove only Muzzle’s marked entries. macOS will request administrator approval.
+- If a session key is lost, recovery requires administrator access: remove Muzzle’s marked section from the hosts file and clear Muzzle’s PF anchor. Both steps are necessary to remove the block completely.
