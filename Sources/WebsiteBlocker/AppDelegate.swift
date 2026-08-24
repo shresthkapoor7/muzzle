@@ -7,8 +7,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var managementWindowController: ManagementWindowController?
     private var unlockKey: String = ""
     private var isTerminationAuthorized = false
+    private var isSecondaryInstance = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let runningCopies = NSRunningApplication.runningApplications(
+            withBundleIdentifier: "local.websiteblocker.app"
+        )
+
+        guard let firstCopy = runningCopies.first(where: { $0.processIdentifier != ownPID }) else { return }
+        isSecondaryInstance = true
+        firstCopy.activate(options: [])
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isSecondaryInstance else {
+            isTerminationAuthorized = true
+            NSApp.terminate(nil)
+            return
+        }
+
         NSApp.setActivationPolicy(.accessory)
 
         do {
@@ -27,10 +45,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onEndSession: { [weak self] in self?.requestEndSession() }
         )
 
-        DispatchQueue.main.async { [weak self] in
-            NSApp.activate(ignoringOtherApps: true)
-            self?.showUnlockKey()
-            self?.showManagementWindow()
+        if !blocker.blockedDomains.isEmpty {
+            DispatchQueue.main.async { [weak self] in
+                self?.showUnlockKey()
+            }
         }
     }
 
@@ -40,7 +58,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showManagementWindow() {
         if managementWindowController == nil {
-            managementWindowController = ManagementWindowController(blocker: blocker)
+            managementWindowController = ManagementWindowController(
+                blocker: blocker,
+                onProtectionStarted: { [weak self] in self?.showUnlockKey() }
+            )
         }
         managementWindowController?.showWindow(nil)
         managementWindowController?.window?.makeKeyAndOrderFront(nil)

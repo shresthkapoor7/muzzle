@@ -3,8 +3,8 @@ import SwiftUI
 
 @MainActor
 final class ManagementWindowController: NSWindowController {
-    init(blocker: BlockerController) {
-        let rootView = ManagementView(blocker: blocker)
+    init(blocker: BlockerController, onProtectionStarted: @escaping () -> Void) {
+        let rootView = ManagementView(blocker: blocker, onProtectionStarted: onProtectionStarted)
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Website Blocker"
@@ -23,6 +23,7 @@ final class ManagementWindowController: NSWindowController {
 
 private struct ManagementView: View {
     @ObservedObject var blocker: BlockerController
+    let onProtectionStarted: () -> Void
     @State private var domainInput = ""
 
     var body: some View {
@@ -141,7 +142,11 @@ private struct ManagementView: View {
     }
 
     private func addDomain() {
+        let wasInactive = blocker.blockedDomains.isEmpty
         blocker.add(domainInput)
+        if wasInactive, !blocker.blockedDomains.isEmpty {
+            onProtectionStarted()
+        }
         domainInput = ""
     }
 }

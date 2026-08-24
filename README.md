@@ -12,9 +12,11 @@ scripts/build-app.sh
 open "dist/Website Blocker.app"
 ```
 
-Website Blocker is a menu-bar agent. It adds a **BLOCK** control to the macOS menu bar and does not appear as a regular app in the Dock or Force Quit Applications list. Choose **Add or view protected websites…** to add a domain. The protected list is read-only during a session; the one-time session key is required to end protection and remove its hosts-file entries. Each addition asks macOS for administrator permission because the app manages only its marked section in `/etc/hosts`.
+Website Blocker is a menu-bar agent. It adds a small outlined circle to the macOS menu bar when inactive and a raised-hand icon when it is blocking websites. It does not appear as a regular app in the Dock or Force Quit Applications list. Click the icon and choose **Start blocking…** to add the first domain, or **Manage protected websites…** while it is active. The protected list is read-only during a session; the one-time session key is required to end protection and remove its hosts-file entries.
 
-The app has no ordinary Quit item and ignores direct quit requests such as Command-Q. At launch it displays a pasteable one-time six-digit session code. Choose **End protection with key…** and supply that code to remove this app’s hosts-file entries and exit normally. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
+Use `open "dist/Website Blocker.app"` to launch it. Do not use `open -n`: that option explicitly asks macOS to create a second instance. The bundle also declares itself single-instance, so a normal launch focuses the existing menu-bar app.
+
+The app has no ordinary Quit item and ignores direct quit requests such as Command-Q. It displays a pasteable one-time six-digit session code only when protection becomes active (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove this app’s hosts-file entries and exit normally. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
 
 ## How blocking works
 

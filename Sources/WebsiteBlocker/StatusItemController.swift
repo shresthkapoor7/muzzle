@@ -17,16 +17,10 @@ final class StatusItemController: NSObject {
         self.blocker = blocker
         self.onManage = onManage
         self.onEndSession = onEndSession
-        self.statusItem = NSStatusBar.system.statusItem(withLength: 78)
+        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
-        if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "hand.raised.fill", accessibilityDescription: "Website Blocker")
-            button.image?.isTemplate = true
-            button.imagePosition = .imageLeading
-            button.title = " BLOCK"
-            button.toolTip = "Website Blocker"
-        }
+        updateStatusButton()
         rebuildMenu()
         observeBlocker()
     }
@@ -34,9 +28,25 @@ final class StatusItemController: NSObject {
     private func observeBlocker() {
         blockerObservation = blocker.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
+                self?.updateStatusButton()
                 self?.rebuildMenu()
             }
         }
+    }
+
+    private func updateStatusButton() {
+        guard let button = statusItem.button else { return }
+
+        let isBlocking = !blocker.blockedDomains.isEmpty
+        let symbolName = isBlocking ? "hand.raised.fill" : "circle"
+        button.image = NSImage(
+            systemSymbolName: symbolName,
+            accessibilityDescription: isBlocking ? "Website Blocker is active" : "Website Blocker is inactive"
+        )
+        button.image?.isTemplate = true
+        button.imagePosition = .imageOnly
+        button.title = ""
+        button.toolTip = isBlocking ? "Website Blocker: active" : "Website Blocker: inactive"
     }
 
     private func rebuildMenu() {
@@ -51,7 +61,8 @@ final class StatusItemController: NSObject {
         menu.addItem(status)
         menu.addItem(.separator())
 
-        menu.addItem(makeItem("Add or view protected websites…", action: #selector(manage)))
+        let manageTitle = blocker.blockedDomains.isEmpty ? "Start blocking…" : "Manage protected websites…"
+        menu.addItem(makeItem(manageTitle, action: #selector(manage)))
         menu.addItem(.separator())
         menu.addItem(makeItem("End protection with key…", action: #selector(endSession)))
 
