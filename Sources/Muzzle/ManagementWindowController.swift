@@ -7,7 +7,7 @@ final class ManagementWindowController: NSWindowController {
         let rootView = ManagementView(blocker: blocker, onProtectionStarted: onProtectionStarted)
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "Website Blocker"
+        window.title = "Muzzle"
         window.setContentSize(NSSize(width: 520, height: 540))
         window.minSize = NSSize(width: 460, height: 460)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -17,7 +17,7 @@ final class ManagementWindowController: NSWindowController {
     }
 
     required init?(coder: NSCoder) {
-        fatalError("Website Blocker windows are created in code.")
+        fatalError("Muzzle windows are created in code.")
     }
 }
 
@@ -51,7 +51,7 @@ private struct ManagementView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Website Blocker", systemImage: "hand.raised.fill")
+            Label("Muzzle", systemImage: "shield.lefthalf.filled")
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(.primary)
             Text(blocker.statusMessage)

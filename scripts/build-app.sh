@@ -6,12 +6,12 @@ cd "$task_root"
 
 swift build -c release
 
-app_path="$task_root/dist/Website Blocker.app"
+app_path="$task_root/dist/Muzzle.app"
 rm -rf "$app_path"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "$task_root/App/Info.plist" "$app_path/Contents/Info.plist"
-cp "$task_root/.build/release/WebsiteBlocker" "$app_path/Contents/MacOS/WebsiteBlocker"
-chmod +x "$app_path/Contents/MacOS/WebsiteBlocker"
+cp "$task_root/.build/release/Muzzle" "$app_path/Contents/MacOS/Muzzle"
+chmod +x "$app_path/Contents/MacOS/Muzzle"
 codesign --force --deep --sign - "$app_path"
 
 echo "Built: $app_path"

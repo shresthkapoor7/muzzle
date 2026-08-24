@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let runningCopies = NSRunningApplication.runningApplications(
-            withBundleIdentifier: "local.websiteblocker.app"
+            withBundleIdentifier: "local.muzzle.app"
         )
 
         guard let firstCopy = runningCopies.first(where: { $0.processIdentifier != ownPID }) else { return }
@@ -81,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func requestEndSession() {
         let alert = NSAlert()
         alert.messageText = "End website blocking?"
-        alert.informativeText = "Enter this session’s unlock key to remove Website Blocker’s entries from your hosts file and quit."
+        alert.informativeText = "Enter this session’s unlock key to remove Muzzle’s entries from your hosts file and quit."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "End protection")
         alert.addButton(withTitle: "Cancel")
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard field.stringValue == unlockKey else {
             let invalidAlert = NSAlert()
             invalidAlert.messageText = "That key does not match"
-            invalidAlert.informativeText = "Website Blocker will keep running."
+            invalidAlert.informativeText = "Muzzle will keep running."
             invalidAlert.alertStyle = .critical
             invalidAlert.runModal()
             return

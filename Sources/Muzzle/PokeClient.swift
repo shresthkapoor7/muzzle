@@ -11,7 +11,7 @@ struct PokeClient {
         var errorDescription: String? {
             switch self {
             case .missingAPIKey:
-                "Poke delivery is not configured. Add your bearer token to POKE_API_KEY in the project’s .env file before starting protection."
+                "Poke delivery is not configured. Add your bearer token to POKE_API_KEY in Muzzle’s .env file before starting protection."
             case .invalidResponse:
                 "Poke did not return a valid response for the session key."
             case .rejected(let statusCode):

@@ -3,15 +3,21 @@ import Foundation
 struct DomainStore {
     private let fileManager = FileManager.default
 
-    private var applicationSupportDirectory: URL {
+    private var applicationSupportBaseDirectory: URL {
         get throws {
-            let base = try fileManager.url(
+            try fileManager.url(
                 for: .applicationSupportDirectory,
                 in: .userDomainMask,
                 appropriateFor: nil,
                 create: true
             )
-            let directory = base.appendingPathComponent("WebsiteBlocker", isDirectory: true)
+        }
+    }
+
+    private var applicationSupportDirectory: URL {
+        get throws {
+            let directory = try applicationSupportBaseDirectory
+                .appendingPathComponent("Muzzle", isDirectory: true)
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             return directory
         }
@@ -23,9 +29,18 @@ struct DomainStore {
 
     func load() throws -> [String] {
         let url = try storeURL
-        guard fileManager.fileExists(atPath: url.path) else { return [] }
-        let data = try Data(contentsOf: url)
-        return try JSONDecoder().decode([String].self, from: data).sorted()
+        if fileManager.fileExists(atPath: url.path) {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode([String].self, from: data).sorted()
+        }
+
+        let legacyURL = try applicationSupportBaseDirectory
+            .appendingPathComponent("WebsiteBlocker", isDirectory: true)
+            .appendingPathComponent("blocked-domains.json")
+        guard fileManager.fileExists(atPath: legacyURL.path) else { return [] }
+        let legacyDomains = try JSONDecoder().decode([String].self, from: Data(contentsOf: legacyURL)).sorted()
+        try save(legacyDomains)
+        return legacyDomains
     }
 
     func save(_ domains: [String]) throws {

@@ -3,8 +3,10 @@ import Foundation
 struct HostsFileController {
     private let fileManager = FileManager.default
     private let hostsURL = URL(fileURLWithPath: "/etc/hosts")
-    private let openingMarker = "# WEBSITE_BLOCKER_BEGIN — managed by Website Blocker"
-    private let closingMarker = "# WEBSITE_BLOCKER_END"
+    private let openingMarker = "# MUZZLE_BEGIN — managed by Muzzle"
+    private let closingMarker = "# MUZZLE_END"
+    private let legacyOpeningMarker = "# WEBSITE_BLOCKER_BEGIN — managed by Website Blocker"
+    private let legacyClosingMarker = "# WEBSITE_BLOCKER_END"
 
     enum HostsError: LocalizedError {
         case noHostsFile
@@ -43,7 +45,7 @@ struct HostsFileController {
                 ["127.0.0.1 \(domain)", "127.0.0.1 www.\(domain)", "::1 \(domain)", "::1 www.\(domain)"]
             }
             output += "\n\n\(openingMarker)\n"
-            output += "# These entries are intentionally managed by the menu-bar app.\n"
+            output += "# These entries are intentionally managed by Muzzle.\n"
             output += entries.joined(separator: "\n")
             output += "\n\(closingMarker)"
         }
@@ -58,12 +60,13 @@ struct HostsFileController {
     }
 
     private func removeManagedBlock(from contents: String) -> String {
-        guard let start = contents.range(of: openingMarker),
-              let end = contents.range(of: closingMarker, range: start.upperBound..<contents.endIndex) else {
-            return contents
-        }
         var result = contents
-        result.removeSubrange(start.lowerBound..<end.upperBound)
+        for markers in [(openingMarker, closingMarker), (legacyOpeningMarker, legacyClosingMarker)] {
+            while let start = result.range(of: markers.0),
+                  let end = result.range(of: markers.1, range: start.upperBound..<result.endIndex) {
+                result.removeSubrange(start.lowerBound..<end.upperBound)
+            }
+        }
         return result
     }
 
@@ -73,7 +76,7 @@ struct HostsFileController {
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
-        ).appendingPathComponent("WebsiteBlocker", isDirectory: true)
+        ).appendingPathComponent("Muzzle", isDirectory: true)
         try fileManager.createDirectory(at: base, withIntermediateDirectories: true)
 
         let stagingURL = base.appendingPathComponent("hosts.staging")

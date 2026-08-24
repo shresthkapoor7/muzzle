@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Muzzle">
+  <rect width="96" height="96" rx="20" fill="#000000"/>
+  <g fill="#ffffff">
+    <path d="M27 23h42l10 20-9 33H26l-9-33z"/>
+    <path d="M16 40 5 34v9l11 6zm64 0 11-6v9l-11 6z"/>
+  </g>
+  <g fill="#000000">
+    <path d="M32 34h32v6H32zm-3 12h38v6H29zm4 12h30v6H33z"/>
+    <path d="M44 28h8v42h-8z"/>
+  </g>
+</svg>

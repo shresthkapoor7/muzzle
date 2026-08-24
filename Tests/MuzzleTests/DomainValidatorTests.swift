@@ -1,5 +1,5 @@
 import XCTest
-@testable import WebsiteBlocker
+@testable import Muzzle
 
 final class DomainValidatorTests: XCTestCase {
     func testNormalizesDomainsAndOptionalScheme() throws {
@@ -27,15 +27,15 @@ final class DomainValidatorTests: XCTestCase {
             ipv6Addresses: ["2606:4700:3033::6815:1f28"]
         )
 
-        XCTAssertTrue(rules.contains("table <websiteblocker_ipv4> persist { 104.21.31.40 }"))
-        XCTAssertTrue(rules.contains("block return out quick inet to <websiteblocker_ipv4>"))
-        XCTAssertTrue(rules.contains("block return out quick inet6 to <websiteblocker_ipv6>"))
+        XCTAssertTrue(rules.contains("table <muzzle_ipv4> persist { 104.21.31.40 }"))
+        XCTAssertTrue(rules.contains("block return out quick inet to <muzzle_ipv4>"))
+        XCTAssertTrue(rules.contains("block return out quick inet6 to <muzzle_ipv6>"))
     }
 
     func testPacketFilterRulesSkipEmptyAddressFamilies() {
         let rules = PacketFilterController().rules(ipv4Addresses: ["104.21.31.40"], ipv6Addresses: [])
 
-        XCTAssertTrue(rules.contains("websiteblocker_ipv4"))
-        XCTAssertFalse(rules.contains("websiteblocker_ipv6"))
+        XCTAssertTrue(rules.contains("muzzle_ipv4"))
+        XCTAssertFalse(rules.contains("muzzle_ipv6"))
     }
 }

@@ -1,4 +1,4 @@
-# Website Blocker
+# <img src="assets/muzzle.svg" width="38" height="38" alt="Muzzle" valign="middle"> Muzzle
 
 A small native macOS menu-bar app that blocks selected domains for the whole Mac.
 
@@ -9,7 +9,7 @@ From this project directory:
 ```sh
 chmod +x scripts/build-app.sh
 scripts/build-app.sh
-open "dist/Website Blocker.app"
+open "dist/Muzzle.app"
 ```
 
 Before starting protection, put your Poke bearer token in the project’s local `.env` file:
@@ -18,21 +18,21 @@ Before starting protection, put your Poke bearer token in the project’s local 
 POKE_API_KEY=your-token-here
 ```
 
-The file is ignored by Git. When a session key is created, Website Blocker posts this JSON to Poke and never displays or copies the code locally:
+The file is ignored by Git. When a session key is created, Muzzle posts this JSON to Poke and never displays or copies the code locally:
 
 ```json
 {"event":"lock_key","key":"123456","date":"2026-08-24"}
 ```
 
-Website Blocker is a menu-bar agent. It adds a small outlined circle to the macOS menu bar when inactive and a raised-hand icon when it is blocking websites. It does not appear as a regular app in the Dock or Force Quit Applications list. Click the icon and choose **Start blocking…** to add the first domain, or **Manage protected websites…** while it is active. The protected list is read-only during a session; the one-time session key is required to end protection and remove its hosts-file entries.
+Muzzle is a menu-bar agent. It shows an outlined muzzle mark when inactive and a filled mark when it is blocking websites. It does not appear as a regular app in the Dock or Force Quit Applications list. Click the icon and choose **Start blocking…** to add the first domain, or **Manage protected websites…** while it is active. The protected list is read-only during a session; the one-time session key is required to end protection and remove its hosts-file entries.
 
-Use `open "dist/Website Blocker.app"` to launch it. Do not use `open -n`: that option explicitly asks macOS to create a second instance. The bundle also declares itself single-instance, so a normal launch focuses the existing menu-bar app.
+Use `open "dist/Muzzle.app"` to launch it. Do not use `open -n`: that option explicitly asks macOS to create a second instance. The bundle also declares itself single-instance, so a normal launch focuses the existing menu-bar app.
 
-The app has no ordinary Quit item and ignores direct quit requests such as Command-Q. It sends the one-time six-digit session code to Poke when protection becomes active (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove this app’s hosts-file entries and exit normally. If Poke delivery fails, protection remains active and the error explains how to fix the delivery configuration. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
+The app has no ordinary Quit item and ignores direct quit requests such as Command-Q. It sends the one-time six-digit session code to Poke when protection becomes active (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove its hosts-file entries and exit normally. If Poke delivery fails, protection remains active and the error explains how to fix the delivery configuration. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
 
 ## How blocking works
 
-Website Blocker adds `127.0.0.1` and `::1` entries for each domain and its `www` subdomain between clearly labeled markers in `/etc/hosts`. It never replaces the rest of that file. It also resolves the domain’s current public IPv4/IPv6 addresses and loads an isolated macOS PF anchor that blocks outgoing connections to them.
+Muzzle adds `127.0.0.1` and `::1` entries for each domain and its `www` subdomain between clearly labeled markers in `/etc/hosts`. It never replaces the rest of that file. It also resolves the domain’s current public IPv4/IPv6 addresses and loads an isolated macOS PF anchor that blocks outgoing connections to them.
 
 Changing protection updates both system components in one administrator-authorized operation, so adding a website or ending protection results in one macOS permission request rather than separate requests for the firewall and hosts file. A permanently authorized root helper is a separate signed, privileged-service architecture; this local ad-hoc build deliberately does not install one.
 
@@ -41,7 +41,7 @@ The PF layer means Chrome’s Secure DNS/DoH cannot bypass the block: Chrome may
 ## Safety and recovery
 
 - The app shows the session key at startup and lets you reveal it again while it is running.
-- Normal exit removes only the `WEBSITE_BLOCKER` section it created.
+- Normal exit removes only the `MUZZLE` section it created.
 - If the process is force-quit, reopening the app lets you manage its prior saved list again.
 - The managed hosts-file section is human-readable and can be removed manually by an administrator if needed.
-- If a running session’s code is lost, run `"dist/Website Blocker.app/Contents/MacOS/WebsiteBlocker" --remove-website-blocker-hosts` to remove only Website Blocker’s marked entries. macOS will request administrator approval.
+- If a running session’s code is lost, run `"dist/Muzzle.app/Contents/MacOS/Muzzle" --remove-muzzle-hosts` to remove only Muzzle’s marked entries. macOS will request administrator approval.

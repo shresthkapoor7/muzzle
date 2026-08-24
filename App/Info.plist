@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDisplayName</key>
-    <string>Website Blocker</string>
+    <string>Muzzle</string>
     <key>CFBundleExecutable</key>
-    <string>WebsiteBlocker</string>
+    <string>Muzzle</string>
     <key>CFBundleIdentifier</key>
-    <string>local.websiteblocker.app</string>
+    <string>local.muzzle.app</string>
     <key>CFBundleName</key>
-    <string>Website Blocker</string>
+    <string>Muzzle</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

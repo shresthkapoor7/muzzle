@@ -1,12 +1,12 @@
 import AppKit
 
-if CommandLine.arguments.contains("--remove-website-blocker-hosts") {
+if CommandLine.arguments.contains("--remove-muzzle-hosts") {
     NSApplication.shared.setActivationPolicy(.accessory)
     do {
         try HostsFileController().apply([])
         exit(EXIT_SUCCESS)
     } catch {
-        FileHandle.standardError.write(Data("Website Blocker could not remove its hosts-file entries: \(error.localizedDescription)\n".utf8))
+        FileHandle.standardError.write(Data("Muzzle could not remove its hosts-file entries: \(error.localizedDescription)\n".utf8))
         exit(EXIT_FAILURE)
     }
 }

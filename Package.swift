@@ -2,13 +2,13 @@
 import PackageDescription
 
 let package = Package(
-    name: "WebsiteBlocker",
+    name: "Muzzle",
     platforms: [.macOS(.v13)],
     products: [
-        .executable(name: "WebsiteBlocker", targets: ["WebsiteBlocker"])
+        .executable(name: "Muzzle", targets: ["Muzzle"])
     ],
     targets: [
-        .executableTarget(name: "WebsiteBlocker"),
-        .testTarget(name: "WebsiteBlockerTests", dependencies: ["WebsiteBlocker"])
+        .executableTarget(name: "Muzzle", path: "Sources/Muzzle"),
+        .testTarget(name: "MuzzleTests", dependencies: ["Muzzle"], path: "Tests/MuzzleTests")
     ]
 )

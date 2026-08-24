@@ -2,8 +2,10 @@ import Foundation
 
 struct PacketFilterController {
     private let fileManager = FileManager.default
-    private let anchorURL = URL(fileURLWithPath: "/etc/pf.anchors/websiteblocker")
-    private let anchorName = "com.apple/websiteblocker"
+    private let anchorURL = URL(fileURLWithPath: "/etc/pf.anchors/muzzle")
+    private let anchorName = "com.apple/muzzle"
+    private let legacyAnchorURL = URL(fileURLWithPath: "/etc/pf.anchors/websiteblocker")
+    private let legacyAnchorName = "com.apple/websiteblocker"
 
     enum PacketFilterError: LocalizedError {
         case noResolvedAddresses
@@ -30,6 +32,7 @@ struct PacketFilterController {
 
     func installCommand(anchor: URL) -> String {
         """
+        \(removeLegacyCommand()) && \\
         /usr/bin/install -d -m 755 /etc/pf.anchors && \\
         /usr/bin/install -m 600 \(shellQuote(anchor.path)) \(shellQuote(anchorURL.path)) && \\
         /sbin/pfctl -a \(anchorName) -f \(shellQuote(anchorURL.path)) && \\
@@ -40,20 +43,21 @@ struct PacketFilterController {
     func removeCommand() -> String {
         """
         (/sbin/pfctl -a \(anchorName) -F all >/dev/null 2>&1 || true) && \\
-        /bin/rm -f \(shellQuote(anchorURL.path))
+        /bin/rm -f \(shellQuote(anchorURL.path)) && \\
+        \(removeLegacyCommand())
         """
     }
 
     func rules(ipv4Addresses: [String], ipv6Addresses: [String]) -> String {
-        var rules = ["# This anchor is managed by Website Blocker. Do not edit while protection is active."]
+        var rules = ["# This anchor is managed by Muzzle. Do not edit while protection is active."]
 
         if !ipv4Addresses.isEmpty {
-            rules.append("table <websiteblocker_ipv4> persist { \(ipv4Addresses.sorted().joined(separator: ", ")) }")
-            rules.append("block return out quick inet to <websiteblocker_ipv4>")
+            rules.append("table <muzzle_ipv4> persist { \(ipv4Addresses.sorted().joined(separator: ", ")) }")
+            rules.append("block return out quick inet to <muzzle_ipv4>")
         }
         if !ipv6Addresses.isEmpty {
-            rules.append("table <websiteblocker_ipv6> persist { \(ipv6Addresses.sorted().joined(separator: ", ")) }")
-            rules.append("block return out quick inet6 to <websiteblocker_ipv6>")
+            rules.append("table <muzzle_ipv6> persist { \(ipv6Addresses.sorted().joined(separator: ", ")) }")
+            rules.append("block return out quick inet6 to <muzzle_ipv6>")
         }
 
         return rules.joined(separator: "\n") + "\n"
@@ -112,17 +116,24 @@ struct PacketFilterController {
             appropriateFor: nil,
             create: true
         )
-        .appendingPathComponent("WebsiteBlocker", isDirectory: true)
+        .appendingPathComponent("Muzzle", isDirectory: true)
         .appendingPathComponent("pf-staging-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        let anchorStagingURL = directory.appendingPathComponent("websiteblocker")
+        let anchorStagingURL = directory.appendingPathComponent("muzzle")
         try Data(rules.utf8).write(to: anchorStagingURL, options: .atomic)
         return anchorStagingURL
     }
 
     private func shellQuote(_ value: String) -> String {
         "'\(value.replacingOccurrences(of: "'", with: "'\\\"'\\\"'"))'"
+    }
+
+    private func removeLegacyCommand() -> String {
+        """
+        (/sbin/pfctl -a \(legacyAnchorName) -F all >/dev/null 2>&1 || true) && \\
+        /bin/rm -f \(shellQuote(legacyAnchorURL.path))
+        """
     }
 
 }
