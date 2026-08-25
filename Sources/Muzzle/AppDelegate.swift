@@ -84,7 +84,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func requestWorkContextForRestoredSession() {
-        NSApp.activate(ignoringOtherApps: true)
+        showManagementWindow()
+        guard let window = managementWindowController?.window else {
+            deliverUnlockKeyToPoke()
+            return
+        }
 
         let alert = NSAlert()
         alert.messageText = "What are you working on?"
@@ -99,9 +103,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.window.initialFirstResponder = field
         alert.window.makeFirstResponder(field)
 
-        alert.runModal()
-        let workingOn = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        deliverUnlockKeyToPoke(workingOn: workingOn.isEmpty ? nil : workingOn)
+        alert.beginSheetModal(for: window) { [weak self] _ in
+            let workingOn = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            self?.deliverUnlockKeyToPoke(workingOn: workingOn.isEmpty ? nil : workingOn)
+        }
     }
 
     private func quitWhenInactive() {
