@@ -6,17 +6,20 @@ final class StatusItemController: NSObject {
     private let blocker: BlockerController
     private let onManage: () -> Void
     private let onEndSession: () -> Void
+    private let onQuit: () -> Void
     private let statusItem: NSStatusItem
     private var blockerObservation: AnyCancellable?
 
     init(
         blocker: BlockerController,
         onManage: @escaping () -> Void,
-        onEndSession: @escaping () -> Void
+        onEndSession: @escaping () -> Void,
+        onQuit: @escaping () -> Void
     ) {
         self.blocker = blocker
         self.onManage = onManage
         self.onEndSession = onEndSession
+        self.onQuit = onQuit
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
@@ -60,8 +63,10 @@ final class StatusItemController: NSObject {
 
         let manageTitle = blocker.blockedDomains.isEmpty ? "Start blocking…" : "Manage protected websites…"
         menu.addItem(makeItem(manageTitle, action: #selector(manage)))
-        if !blocker.blockedDomains.isEmpty {
-            menu.addItem(.separator())
+        menu.addItem(.separator())
+        if blocker.blockedDomains.isEmpty {
+            menu.addItem(makeItem("Quit Muzzle", action: #selector(quit)))
+        } else {
             menu.addItem(makeItem("End protection with key…", action: #selector(endSession)))
         }
 
@@ -76,6 +81,7 @@ final class StatusItemController: NSObject {
 
     @objc private func manage() { onManage() }
     @objc private func endSession() { onEndSession() }
+    @objc private func quit() { onQuit() }
 }
 
 private enum MuzzleStatusIcon {

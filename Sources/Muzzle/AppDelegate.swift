@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var managementWindowController: ManagementWindowController?
     private var unlockKey: String = ""
     private var isSecondaryInstance = false
+    private var isQuitAuthorized = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         let ownPID = ProcessInfo.processInfo.processIdentifier
@@ -41,7 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItemController = StatusItemController(
             blocker: blocker,
             onManage: { [weak self] in self?.showManagementWindow() },
-            onEndSession: { [weak self] in self?.requestEndSession() }
+            onEndSession: { [weak self] in self?.requestEndSession() },
+            onQuit: { [weak self] in self?.quitWhenInactive() }
         )
 
         if !blocker.blockedDomains.isEmpty {
@@ -52,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        isSecondaryInstance ? .terminateNow : .terminateCancel
+        (isSecondaryInstance || isQuitAuthorized) ? .terminateNow : .terminateCancel
     }
 
     private func showManagementWindow() {
@@ -79,6 +81,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startProtectionSession(workingOn: String?) {
         unlockKey = UnlockKey.make()
         deliverUnlockKeyToPoke(workingOn: workingOn)
+    }
+
+    private func quitWhenInactive() {
+        guard blocker.blockedDomains.isEmpty else { return }
+        isQuitAuthorized = true
+        NSApp.terminate(nil)
     }
 
     private func requestEndSession() {
