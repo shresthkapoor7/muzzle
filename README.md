@@ -18,7 +18,7 @@ Before starting protection, put your Poke bearer token in the project’s local 
 POKE_API_KEY=your-token-here
 ```
 
-The file is ignored by Git. When a session key is created, Muzzle posts this JSON to Poke and never displays or copies the code locally:
+The file is ignored by Git. When a session key is created, Muzzle posts this JSON to Poke and never displays or copies the code locally. The optional one-line “What are you working on?” field adds `working_on` only when filled in:
 
 ```json
 {"event":"lock_key","key":"123456","date":"2026-08-24"}

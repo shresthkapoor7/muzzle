@@ -20,14 +20,18 @@ struct PokeClient {
         }
     }
 
-    func sendLockKey(_ key: String, completion: @escaping (Result<Void, Error>) -> Void) {
+    func sendLockKey(
+        _ key: String,
+        workingOn: String? = nil,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
         let completionBox = CompletionBox(completion)
         guard let apiKey = loadAPIKey() else {
             completionBox.call(.failure(PokeError.missingAPIKey))
             return
         }
 
-        let payload = LockKeyPayload(key: key, date: currentDateString())
+        let payload = LockKeyPayload(key: key, date: currentDateString(), workingOn: workingOn)
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -109,4 +113,12 @@ private struct LockKeyPayload: Encodable {
     let event = "lock_key"
     let key: String
     let date: String
+    let workingOn: String?
+
+    enum CodingKeys: String, CodingKey {
+        case event
+        case key
+        case date
+        case workingOn = "working_on"
+    }
 }

@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 final class ManagementWindowController: NSWindowController {
-    init(blocker: BlockerController, onProtectionStarted: @escaping () -> Void) {
+    init(blocker: BlockerController, onProtectionStarted: @escaping (String?) -> Void) {
         let rootView = ManagementView(blocker: blocker, onProtectionStarted: onProtectionStarted)
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
@@ -23,8 +23,9 @@ final class ManagementWindowController: NSWindowController {
 
 private struct ManagementView: View {
     @ObservedObject var blocker: BlockerController
-    let onProtectionStarted: () -> Void
+    let onProtectionStarted: (String?) -> Void
     @State private var domainInput = ""
+    @State private var workingOnInput = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -77,6 +78,9 @@ private struct ManagementView: View {
                     .disabled(domainInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || blocker.isApplying)
                     .accessibilityHint("Adds this website to the hosts-file block list")
             }
+            TextField("What are you working on? (optional)", text: $workingOnInput)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("What you are working on")
             Text("Use a domain only — for example, youtube.com. Its www version is blocked too.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -145,8 +149,10 @@ private struct ManagementView: View {
         let wasInactive = blocker.blockedDomains.isEmpty
         blocker.add(domainInput)
         if wasInactive, !blocker.blockedDomains.isEmpty {
-            onProtectionStarted()
+            let workingOn = workingOnInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            onProtectionStarted(workingOn.isEmpty ? nil : workingOn)
         }
         domainInput = ""
+        workingOnInput = ""
     }
 }

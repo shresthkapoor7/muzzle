@@ -59,7 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if managementWindowController == nil {
             managementWindowController = ManagementWindowController(
                 blocker: blocker,
-                onProtectionStarted: { [weak self] in self?.startProtectionSession() }
+                onProtectionStarted: { [weak self] workingOn in self?.startProtectionSession(workingOn: workingOn) }
             )
         }
         managementWindowController?.showWindow(nil)
@@ -67,8 +67,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func deliverUnlockKeyToPoke() {
-        pokeClient.sendLockKey(unlockKey) { [weak self] result in
+    private func deliverUnlockKeyToPoke(workingOn: String? = nil) {
+        pokeClient.sendLockKey(unlockKey, workingOn: workingOn) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self, case let .failure(error) = result else { return }
                 self.blocker.present(error: error)
@@ -76,9 +76,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func startProtectionSession() {
+    private func startProtectionSession(workingOn: String?) {
         unlockKey = UnlockKey.make()
-        deliverUnlockKeyToPoke()
+        deliverUnlockKeyToPoke(workingOn: workingOn)
     }
 
     private func requestEndSession() {
