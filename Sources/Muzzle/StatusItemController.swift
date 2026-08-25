@@ -60,8 +60,10 @@ final class StatusItemController: NSObject {
 
         let manageTitle = blocker.blockedDomains.isEmpty ? "Start blocking…" : "Manage protected websites…"
         menu.addItem(makeItem(manageTitle, action: #selector(manage)))
-        menu.addItem(.separator())
-        menu.addItem(makeItem("End protection with key…", action: #selector(endSession)))
+        if !blocker.blockedDomains.isEmpty {
+            menu.addItem(.separator())
+            menu.addItem(makeItem("End protection with key…", action: #selector(endSession)))
+        }
 
         statusItem.menu = menu
     }

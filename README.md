@@ -28,7 +28,7 @@ Muzzle is a menu-bar agent. It shows an outlined muzzle mark when inactive and a
 
 Use `open "dist/Muzzle.app"` to launch it. Do not use `open -n`: that option explicitly asks macOS to create a second instance. The bundle also declares itself single-instance, so a normal launch focuses the existing menu-bar app.
 
-The app has no ordinary Quit item and ignores direct quit requests such as Command-Q. It sends the one-time six-digit session code to Poke when protection becomes active (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove its hosts-file entries and exit normally. If Poke delivery fails, protection remains active and the error explains how to fix the delivery configuration. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
+The app has no ordinary Quit item and ignores direct quit requests such as Command-Q. It sends a fresh six-digit session code to Poke each time protection starts (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove its hosts-file entries; Muzzle then remains open as an inactive menu-bar icon, ready to start again. It does not install itself as a login item. If Poke delivery fails, protection remains active and the error explains how to fix the delivery configuration. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
 
 ## How blocking works
 
@@ -41,7 +41,7 @@ The PF layer means Chrome’s Secure DNS/DoH cannot bypass the block: Chrome may
 ## Safety and recovery
 
 - Muzzle sends the session key to Poke when protection starts; it never displays or copies the key locally.
-- Normal exit removes only the `MUZZLE` section it created.
+- Ending protection removes only the `MUZZLE` section it created and leaves Muzzle open in standby.
 - If the process is force-quit, reopening the app lets you manage its prior saved list again.
 - The managed hosts-file section is human-readable and can be removed manually by an administrator if needed.
 - If a session key is lost, recovery requires administrator access: remove Muzzle’s marked section from the hosts file and clear Muzzle’s PF anchor. Both steps are necessary to remove the block completely.

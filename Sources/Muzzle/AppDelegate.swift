@@ -7,7 +7,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
     private var managementWindowController: ManagementWindowController?
     private var unlockKey: String = ""
-    private var isTerminationAuthorized = false
     private var isSecondaryInstance = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -23,7 +22,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard !isSecondaryInstance else {
-            isTerminationAuthorized = true
             NSApp.terminate(nil)
             return
         }
@@ -54,14 +52,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        isTerminationAuthorized ? .terminateNow : .terminateCancel
+        isSecondaryInstance ? .terminateNow : .terminateCancel
     }
 
     private func showManagementWindow() {
         if managementWindowController == nil {
             managementWindowController = ManagementWindowController(
                 blocker: blocker,
-                onProtectionStarted: { [weak self] in self?.deliverUnlockKeyToPoke() }
+                onProtectionStarted: { [weak self] in self?.startProtectionSession() }
             )
         }
         managementWindowController?.showWindow(nil)
@@ -78,10 +76,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func startProtectionSession() {
+        unlockKey = UnlockKey.make()
+        deliverUnlockKeyToPoke()
+    }
+
     private func requestEndSession() {
         let alert = NSAlert()
         alert.messageText = "End website blocking?"
-        alert.informativeText = "Enter this session’s unlock key to remove Muzzle’s entries from your hosts file and quit."
+        alert.informativeText = "Enter this session’s unlock key to remove Muzzle’s entries from your hosts file. Muzzle will remain available in the menu bar."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "End protection")
         alert.addButton(withTitle: "Cancel")
@@ -107,8 +110,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             try blocker.endProtection()
-            isTerminationAuthorized = true
-            NSApp.terminate(nil)
         } catch {
             blocker.present(error: error)
         }
