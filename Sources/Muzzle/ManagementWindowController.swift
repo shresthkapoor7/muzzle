@@ -78,9 +78,11 @@ private struct ManagementView: View {
                     .disabled(domainInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || blocker.isApplying)
                     .accessibilityHint("Adds this website to the hosts-file block list")
             }
-            TextField("What are you working on? (optional)", text: $workingOnInput)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("What you are working on")
+            if blocker.blockedDomains.isEmpty {
+                TextField("What are you working on? (optional)", text: $workingOnInput)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("What you are working on")
+            }
             Text("Use a domain only — for example, youtube.com. Its www version is blocked too.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)

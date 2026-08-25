@@ -48,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !blocker.blockedDomains.isEmpty {
             DispatchQueue.main.async { [weak self] in
-                self?.deliverUnlockKeyToPoke()
+                self?.requestWorkContextForRestoredSession()
             }
         }
     }
@@ -81,6 +81,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startProtectionSession(workingOn: String?) {
         unlockKey = UnlockKey.make()
         deliverUnlockKeyToPoke(workingOn: workingOn)
+    }
+
+    private func requestWorkContextForRestoredSession() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.messageText = "What are you working on?"
+        alert.informativeText = "Optional — Muzzle will include this with the new lock key sent to Poke."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Continue")
+
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 28))
+        field.placeholderString = "Optional"
+        field.maximumNumberOfLines = 1
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        alert.window.makeFirstResponder(field)
+
+        alert.runModal()
+        let workingOn = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        deliverUnlockKeyToPoke(workingOn: workingOn.isEmpty ? nil : workingOn)
     }
 
     private func quitWhenInactive() {
