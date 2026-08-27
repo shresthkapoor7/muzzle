@@ -115,7 +115,9 @@ final class BlockerController: ObservableObject {
     }
 
     func startBypass(for minutes: Int) throws {
-        guard !blockedDomains.isEmpty, !isBypassActive else { return }
+        guard minutes > 0 else { throw BlockerError.invalidBypassDuration }
+        guard !blockedDomains.isEmpty else { throw BlockerError.noProtectedWebsites }
+        guard !isBypassActive else { throw BlockerError.bypassAlreadyActive }
 
         isApplying = true
         defer { isApplying = false }
@@ -252,5 +254,22 @@ final class BlockerController: ObservableObject {
         formatter.timeStyle = .short
         formatter.dateStyle = .none
         return formatter.string(from: date)
+    }
+}
+
+private enum BlockerError: LocalizedError {
+    case invalidBypassDuration
+    case noProtectedWebsites
+    case bypassAlreadyActive
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidBypassDuration:
+            "Enter a positive bypass duration."
+        case .noProtectedWebsites:
+            "Add a website before starting a bypass."
+        case .bypassAlreadyActive:
+            "A bypass is already active."
+        }
     }
 }

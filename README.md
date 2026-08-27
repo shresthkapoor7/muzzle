@@ -24,13 +24,13 @@ The file is ignored by Git. When a session key is created, Muzzle posts this JSO
 {"event":"lock_key","key":"123456","date":"2026-08-24"}
 ```
 
-Muzzle is a menu-bar agent. It shows an outlined muzzle mark when inactive and a filled mark when it is blocking websites. It does not appear as a regular app in the Dock or Force Quit Applications list. Click the icon and choose **Start blocking…** to add the first domain, or **Manage protected websites…** while it is active. Choose a 30-, 40-, or 60-minute block to end protection automatically at that deadline; timed blocks do not notify Poke. The protected list is read-only during a session; the one-time session key is required to end untimed protection early.
+Muzzle is a menu-bar agent. It shows an outlined muzzle mark when inactive and a filled mark when it is blocking websites. It does not appear as a regular app in the Dock or Force Quit Applications list. Click the icon and choose **Start blocking…** to add the first domain, or **Manage protected websites…** while it is active. Choose **For a set time** and enter any positive whole number of minutes to end protection automatically at that deadline; timed blocks do not notify Poke. The protected list is read-only during a session; the one-time session key is required to end untimed protection early.
 
 Use `open "dist/Muzzle.app"` to launch it. Do not use `open -n`: that option explicitly asks macOS to create a second instance. The bundle also declares itself single-instance, so a normal launch focuses the existing menu-bar app.
 
 Muzzle ignores direct quit requests such as Command-Q while protection is active. When inactive, its menu includes **Quit Muzzle**. It sends a fresh six-digit session code to Poke each time protection starts (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove its hosts-file entries; Muzzle then remains open as an inactive menu-bar icon, ready to start again. It does not install itself as a login item. If Poke delivery fails, protection remains active and the error explains how to fix the delivery configuration. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
 
-While protection is active, choose **Bypass…** from the menu-bar menu and select 5, 10, or 15 minutes. Muzzle removes the block temporarily, restores it automatically when the bypass ends, and sends Poke a `bypass` event with the selected number of minutes. Quit remains unavailable for the whole bypass.
+While protection is active, choose **Bypass…** from the menu-bar menu and enter any positive whole number of minutes. Muzzle removes the block temporarily, restores it automatically when the bypass ends, and sends Poke a `bypass` event with the selected number of minutes. Quit remains unavailable for the whole bypass.
 
 ## How blocking works
 

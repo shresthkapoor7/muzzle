@@ -92,28 +92,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "Start bypass")
         alert.addButton(withTitle: "Cancel")
 
-        let durationPicker = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 220, height: 28), pullsDown: false)
-        [5, 10, 15].forEach { minutes in
-            let item = NSMenuItem(title: "\(minutes) minutes", action: nil, keyEquivalent: "")
-            item.tag = minutes
-            durationPicker.menu?.addItem(item)
-        }
-        durationPicker.selectItem(at: 0)
-        alert.accessoryView = durationPicker
+        let durationField = NSTextField(frame: NSRect(x: 0, y: 0, width: 96, height: 28))
+        durationField.stringValue = "5"
+        durationField.alignment = .right
+        durationField.placeholderString = "Minutes"
+        durationField.setAccessibilityLabel("Bypass duration in minutes")
 
-        guard alert.runModal() == .alertFirstButtonReturn,
-              let minutes = durationPicker.selectedItem?.tag else { return }
+        let durationLabel = NSTextField(labelWithString: "Minutes")
+        let accessory = NSStackView(views: [durationLabel, durationField])
+        accessory.orientation = .horizontal
+        accessory.spacing = 8
+        accessory.alignment = .centerY
+        alert.accessoryView = accessory
+        alert.window.initialFirstResponder = durationField
+        alert.window.makeFirstResponder(durationField)
 
-        do {
-            try blocker.startBypass(for: minutes)
-            pokeClient.sendBypass(minutes: minutes) { [weak self] result in
-                DispatchQueue.main.async {
-                    guard let self, case let .failure(error) = result else { return }
-                    self.blocker.present(error: error)
-                }
+        while alert.runModal() == .alertFirstButtonReturn {
+            let input = durationField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let minutes = Int(input), minutes > 0 else {
+                alert.informativeText = "Enter a positive whole number of minutes. Muzzle will restore the current website block when this time ends."
+                continue
             }
-        } catch {
-            blocker.present(error: error)
+
+            do {
+                try blocker.startBypass(for: minutes)
+                pokeClient.sendBypass(minutes: minutes) { [weak self] result in
+                    DispatchQueue.main.async {
+                        guard let self, case let .failure(error) = result else { return }
+                        self.blocker.present(error: error)
+                    }
+                }
+                return
+            } catch {
+                blocker.present(error: error)
+                return
+            }
         }
     }
 
