@@ -44,7 +44,7 @@ final class StatusItemController: NSObject {
         guard let button = statusItem.button else { return }
 
         let isBlocking = blocker.isProtectionEnforced
-        button.image = MuzzleStatusIcon.make(isActive: isBlocking)
+        button.image = MuzzleIcon.statusImage(isActive: isBlocking)
         button.image?.accessibilityDescription = isBlocking
             ? "Muzzle is active"
             : blocker.isBypassActive ? "Muzzle bypass is active" : "Muzzle is inactive"
@@ -92,57 +92,4 @@ final class StatusItemController: NSObject {
     @objc private func endSession() { onEndSession() }
     @objc private func bypass() { onBypass() }
     @objc private func quit() { onQuit() }
-}
-
-private enum MuzzleStatusIcon {
-    static func make(isActive: Bool) -> NSImage {
-        let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size, flipped: false) { _ in
-            let mask = maskPath()
-            NSColor.black.setStroke()
-            NSColor.black.setFill()
-
-            if isActive {
-                mask.fill()
-                NSGraphicsContext.saveGraphicsState()
-                NSGraphicsContext.current?.compositingOperation = .clear
-                grillePaths().forEach { grille in
-                    grille.lineWidth = 1.2
-                    grille.stroke()
-                }
-                NSGraphicsContext.restoreGraphicsState()
-            } else {
-                mask.lineWidth = 1.65
-                mask.stroke()
-                grillePaths().forEach { grille in
-                    grille.lineWidth = 1.2
-                    grille.stroke()
-                }
-            }
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }
-
-    private static func maskPath() -> NSBezierPath {
-        let path = NSBezierPath()
-        path.move(to: NSPoint(x: 4.1, y: 15.2))
-        path.line(to: NSPoint(x: 13.9, y: 15.2))
-        path.line(to: NSPoint(x: 16.4, y: 11.3))
-        path.line(to: NSPoint(x: 14.5, y: 2.5))
-        path.line(to: NSPoint(x: 3.5, y: 2.5))
-        path.line(to: NSPoint(x: 1.6, y: 11.3))
-        path.close()
-        return path
-    }
-
-    private static func grillePaths() -> [NSBezierPath] {
-        [6.0, 9.0, 12.0].map { y in
-            let path = NSBezierPath()
-            path.move(to: NSPoint(x: 5.1, y: y))
-            path.line(to: NSPoint(x: 12.9, y: y))
-            return path
-        }
-    }
 }

@@ -86,26 +86,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func requestBypass() {
         let alert = NSAlert()
+        alert.icon = MuzzleIcon.alertImage()
         alert.messageText = "Start a bypass?"
-        alert.informativeText = "Muzzle will restore the current website block when this time ends."
+        alert.informativeText = "Access is restored temporarily. Muzzle will block the website again when the time expires."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Start bypass")
         alert.addButton(withTitle: "Cancel")
 
-        let durationField = NSTextField(frame: NSRect(x: 0, y: 0, width: 96, height: 28))
+        let durationForm = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 58))
+        let durationLabel = NSTextField(labelWithString: "Bypass length")
+        durationLabel.frame = NSRect(x: 0, y: 38, width: 300, height: 18)
+        durationLabel.font = .systemFont(ofSize: 12, weight: .medium)
+
+        let durationField = NSTextField(frame: NSRect(x: 0, y: 2, width: 80, height: 28))
         durationField.stringValue = "5"
         durationField.alignment = .right
         durationField.placeholderString = "Minutes"
         durationField.setAccessibilityLabel("Bypass duration in minutes")
 
-        let durationLabel = NSTextField(labelWithString: "Minutes")
-        let accessory = NSStackView(views: [durationLabel, durationField])
-        accessory.orientation = .horizontal
-        accessory.spacing = 8
-        accessory.alignment = .centerY
-        alert.accessoryView = accessory
+        let unitLabel = NSTextField(labelWithString: "minutes")
+        unitLabel.frame = NSRect(x: 90, y: 7, width: 90, height: 18)
+        unitLabel.font = .systemFont(ofSize: 13)
+        unitLabel.textColor = .secondaryLabelColor
+
+        durationForm.addSubview(durationLabel)
+        durationForm.addSubview(durationField)
+        durationForm.addSubview(unitLabel)
+        alert.accessoryView = durationForm
         alert.window.initialFirstResponder = durationField
-        alert.window.makeFirstResponder(durationField)
 
         while alert.runModal() == .alertFirstButtonReturn {
             let input = durationField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -138,6 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let alert = NSAlert()
+        alert.icon = MuzzleIcon.alertImage()
         alert.messageText = "What are you working on?"
         alert.informativeText = "Optional — Muzzle will include this with the new lock key sent to Poke."
         alert.alertStyle = .informational
@@ -164,6 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func requestEndSession() {
         let alert = NSAlert()
+        alert.icon = MuzzleIcon.alertImage()
         alert.messageText = "End website blocking?"
         alert.informativeText = "Enter this session’s unlock key to remove Muzzle’s entries from your hosts file. Muzzle will remain available in the menu bar."
         alert.alertStyle = .warning
@@ -182,6 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         guard field.stringValue == unlockKey else {
             let invalidAlert = NSAlert()
+            invalidAlert.icon = MuzzleIcon.alertImage()
             invalidAlert.messageText = "That key does not match"
             invalidAlert.informativeText = "Muzzle will keep running."
             invalidAlert.alertStyle = .critical
