@@ -24,7 +24,7 @@ The file is ignored by Git. When a session key is created, Muzzle posts this JSO
 {"event":"lock_key","key":"123456","date":"2026-08-24"}
 ```
 
-Muzzle is a menu-bar agent. It shows an outlined muzzle mark when inactive and a filled mark when it is blocking websites. It does not appear as a regular app in the Dock or Force Quit Applications list. Click the icon and choose **Start blocking…** to add the first domain, or **Manage protected websites…** while it is active. The protected list is read-only during a session; the one-time session key is required to end protection and remove its hosts-file entries.
+Muzzle is a menu-bar agent. It shows an outlined muzzle mark when inactive and a filled mark when it is blocking websites. It does not appear as a regular app in the Dock or Force Quit Applications list. Click the icon and choose **Start blocking…** to add the first domain, or **Manage protected websites…** while it is active. Choose a 30-, 40-, or 60-minute block to end protection automatically at that deadline; timed blocks do not notify Poke. The protected list is read-only during a session; the one-time session key is required to end untimed protection early.
 
 Use `open "dist/Muzzle.app"` to launch it. Do not use `open -n`: that option explicitly asks macOS to create a second instance. The bundle also declares itself single-instance, so a normal launch focuses the existing menu-bar app.
 
@@ -34,7 +34,7 @@ Muzzle ignores direct quit requests such as Command-Q while protection is active
 
 Muzzle adds `127.0.0.1` and `::1` entries for each domain and its `www` subdomain between clearly labeled markers in `/etc/hosts`. It never replaces the rest of that file. It also resolves the domain’s current public IPv4/IPv6 addresses and loads an isolated macOS PF anchor that blocks outgoing connections to them.
 
-Changing protection updates both system components in one administrator-authorized operation, so adding a website or ending protection results in one macOS permission request rather than separate requests for the firewall and hosts file. A permanently authorized root helper is a separate signed, privileged-service architecture; this local ad-hoc build deliberately does not install one.
+Changing protection updates both system components in one administrator-authorized operation, so adding a website or ending protection results in one macOS permission request rather than separate requests for the firewall and hosts file. When a timed block reaches its deadline, macOS may ask for approval to remove those system-level rules. A permanently authorized root helper is a separate signed, privileged-service architecture; this local ad-hoc build deliberately does not install one.
 
 The PF layer means Chrome’s Secure DNS/DoH cannot bypass the block: Chrome may resolve a domain privately, but it cannot connect to that domain’s resolved addresses. This is still a best-effort local firewall because large sites can rotate addresses; reopen the blocker to refresh rules after a network change. Some CDNs share IP addresses between unrelated sites, so an IP-level block can occasionally affect another site on the same address. A Network Extension would provide hostname-precise filtering, but requires Apple’s Network Extension entitlement, code signing, and an installed system extension.
 

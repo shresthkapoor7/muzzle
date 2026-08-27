@@ -31,8 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             try blocker.load()
-            if !blocker.blockedDomains.isEmpty {
-                try blocker.reconcileHostsFile()
+            if blocker.needsSystemReconciliation {
+                try blocker.reconcileSystemState()
             }
         } catch {
             blocker.present(error: error)
@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onQuit: { [weak self] in self?.quitWhenInactive() }
         )
 
-        if !blocker.blockedDomains.isEmpty {
+        if !blocker.blockedDomains.isEmpty, !blocker.isTimedSession {
             DispatchQueue.main.async { [weak self] in
                 self?.requestWorkContextForRestoredSession()
             }

@@ -26,6 +26,7 @@ private struct ManagementView: View {
     let onProtectionStarted: (String?) -> Void
     @State private var domainInput = ""
     @State private var workingOnInput = ""
+    @State private var blockDuration = BlockDuration.thirtyMinutes
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -79,9 +80,27 @@ private struct ManagementView: View {
                     .accessibilityHint("Adds this website to the hosts-file block list")
             }
             if blocker.blockedDomains.isEmpty {
-                TextField("What are you working on? (optional)", text: $workingOnInput)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("What you are working on")
+                HStack(spacing: 8) {
+                    Text("Block for")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Picker("Block duration", selection: $blockDuration) {
+                        ForEach(BlockDuration.allCases) { duration in
+                            Text(duration.title).tag(duration)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 180)
+                }
+                if blockDuration == .untilEnded {
+                    TextField("What are you working on? (optional)", text: $workingOnInput)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("What you are working on")
+                } else {
+                    Text("Timed blocks do not notify Poke.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
             }
             Text("Use a domain only — for example, youtube.com. Its www version is blocked too.")
                 .font(.system(size: 12))
@@ -149,12 +168,41 @@ private struct ManagementView: View {
 
     private func addDomain() {
         let wasInactive = blocker.blockedDomains.isEmpty
-        blocker.add(domainInput)
+        blocker.add(domainInput, timedDurationMinutes: wasInactive ? blockDuration.minutes : nil)
         if wasInactive, !blocker.blockedDomains.isEmpty {
             let workingOn = workingOnInput.trimmingCharacters(in: .whitespacesAndNewlines)
-            onProtectionStarted(workingOn.isEmpty ? nil : workingOn)
+            if blockDuration == .untilEnded {
+                onProtectionStarted(workingOn.isEmpty ? nil : workingOn)
+            }
         }
         domainInput = ""
         workingOnInput = ""
+    }
+}
+
+private enum BlockDuration: String, CaseIterable, Identifiable {
+    case thirtyMinutes
+    case fortyMinutes
+    case sixtyMinutes
+    case untilEnded
+
+    var id: Self { self }
+
+    var minutes: Int? {
+        switch self {
+        case .thirtyMinutes: 30
+        case .fortyMinutes: 40
+        case .sixtyMinutes: 60
+        case .untilEnded: nil
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .thirtyMinutes: "30 minutes"
+        case .fortyMinutes: "40 minutes"
+        case .sixtyMinutes: "60 minutes"
+        case .untilEnded: "Until I end it"
+        }
     }
 }
