@@ -30,7 +30,7 @@ Use `open "dist/Muzzle.app"` to launch it. Do not use `open -n`: that option exp
 
 Muzzle ignores direct quit requests such as Command-Q while protection is active. When inactive, its menu includes **Quit Muzzle**. It sends a fresh six-digit session code to Poke each time protection starts (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove its hosts-file entries; Muzzle then remains open as an inactive menu-bar icon, ready to start again. It does not install itself as a login item. If Poke delivery fails, protection remains active and the error explains how to fix the delivery configuration. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
 
-While protection is active, choose **Bypass…** from the menu-bar menu and enter any positive whole number of minutes. Muzzle removes the block temporarily, restores it automatically when the bypass ends, and sends Poke a `bypass` event with the selected number of minutes. Quit remains unavailable for the whole bypass.
+Before blocking the first website, choose how many bypasses the session permits: 0, 1, 2, or 3 (default: 1). While protection is active and an allowance remains, choose **Bypass…** from the menu-bar menu and enter any positive whole number of minutes. Muzzle consumes one allowance, removes the block temporarily, restores it automatically when the bypass ends, and sends Poke a `bypass` event with the selected number of minutes. Quit remains unavailable for the whole bypass.
 
 ## How blocking works
 

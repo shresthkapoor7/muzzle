@@ -8,8 +8,8 @@ final class ManagementWindowController: NSWindowController {
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Muzzle"
-        window.setContentSize(NSSize(width: 520, height: 540))
-        window.minSize = NSSize(width: 460, height: 460)
+        window.setContentSize(NSSize(width: 520, height: 575))
+        window.minSize = NSSize(width: 460, height: 500)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
         window.center()
@@ -28,6 +28,7 @@ private struct ManagementView: View {
     @State private var workingOnInput = ""
     @State private var blockMode = BlockMode.timed
     @State private var timedMinutesInput = "30"
+    @State private var allowedBypasses = 1
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -87,6 +88,23 @@ private struct ManagementView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+
+                HStack(spacing: 10) {
+                    Text("Bypasses allowed")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Picker("Bypasses allowed", selection: $allowedBypasses) {
+                        ForEach(0...3, id: \.self) { count in
+                            Text("\(count)").tag(count)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 152)
+                }
+                Text("Each bypass temporarily restores access for a duration you choose.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
 
                 if blockMode == .timed {
                     HStack(spacing: 8) {
@@ -181,7 +199,8 @@ private struct ManagementView: View {
         guard !wasInactive || blockMode == .untilEnded || timedMinutes != nil else { return }
         blocker.add(
             domainInput,
-            timedDurationMinutes: wasInactive && blockMode == .timed ? timedMinutes : nil
+            timedDurationMinutes: wasInactive && blockMode == .timed ? timedMinutes : nil,
+            allowedBypasses: wasInactive ? allowedBypasses : 1
         )
         if wasInactive, !blocker.blockedDomains.isEmpty {
             let workingOn = workingOnInput.trimmingCharacters(in: .whitespacesAndNewlines)

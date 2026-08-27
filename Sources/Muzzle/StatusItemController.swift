@@ -72,8 +72,8 @@ final class StatusItemController: NSObject {
         if blocker.canQuit {
             menu.addItem(makeItem("Quit Muzzle", action: #selector(quit)))
         } else {
-            if !blocker.isBypassActive {
-                menu.addItem(makeItem("Bypass…", action: #selector(bypass)))
+            if blocker.canStartBypass {
+                menu.addItem(makeItem("Bypass… (\(blocker.remainingBypasses) left)", action: #selector(bypass)))
                 menu.addItem(.separator())
             }
             menu.addItem(makeItem("End protection with key…", action: #selector(endSession)))
