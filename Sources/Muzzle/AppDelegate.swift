@@ -43,10 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             blocker: blocker,
             onManage: { [weak self] in self?.showManagementWindow() },
             onEndSession: { [weak self] in self?.requestEndSession() },
+            onBypass: { [weak self] in self?.requestBypass() },
             onQuit: { [weak self] in self?.quitWhenInactive() }
         )
 
-        if !blocker.blockedDomains.isEmpty, !blocker.isTimedSession {
+        if !blocker.blockedDomains.isEmpty, !blocker.isTimedSession, !blocker.isBypassActive {
             DispatchQueue.main.async { [weak self] in
                 self?.requestWorkContextForRestoredSession()
             }
@@ -83,6 +84,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         deliverUnlockKeyToPoke(workingOn: workingOn)
     }
 
+    private func requestBypass() {
+        let alert = NSAlert()
+        alert.messageText = "Start a bypass?"
+        alert.informativeText = "Muzzle will restore the current website block when this time ends."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Start bypass")
+        alert.addButton(withTitle: "Cancel")
+
+        let durationPicker = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 220, height: 28), pullsDown: false)
+        [5, 10, 15].forEach { minutes in
+            let item = NSMenuItem(title: "\(minutes) minutes", action: nil, keyEquivalent: "")
+            item.tag = minutes
+            durationPicker.menu?.addItem(item)
+        }
+        durationPicker.selectItem(at: 0)
+        alert.accessoryView = durationPicker
+
+        guard alert.runModal() == .alertFirstButtonReturn,
+              let minutes = durationPicker.selectedItem?.tag else { return }
+
+        do {
+            try blocker.startBypass(for: minutes)
+            pokeClient.sendBypass(minutes: minutes) { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self, case let .failure(error) = result else { return }
+                    self.blocker.present(error: error)
+                }
+            }
+        } catch {
+            blocker.present(error: error)
+        }
+    }
+
     private func requestWorkContextForRestoredSession() {
         showManagementWindow()
         guard let window = managementWindowController?.window else {
@@ -110,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func quitWhenInactive() {
-        guard blocker.blockedDomains.isEmpty else { return }
+        guard blocker.canQuit else { return }
         isQuitAuthorized = true
         NSApp.terminate(nil)
     }

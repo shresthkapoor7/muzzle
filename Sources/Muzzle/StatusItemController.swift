@@ -6,6 +6,7 @@ final class StatusItemController: NSObject {
     private let blocker: BlockerController
     private let onManage: () -> Void
     private let onEndSession: () -> Void
+    private let onBypass: () -> Void
     private let onQuit: () -> Void
     private let statusItem: NSStatusItem
     private var blockerObservation: AnyCancellable?
@@ -14,11 +15,13 @@ final class StatusItemController: NSObject {
         blocker: BlockerController,
         onManage: @escaping () -> Void,
         onEndSession: @escaping () -> Void,
+        onBypass: @escaping () -> Void,
         onQuit: @escaping () -> Void
     ) {
         self.blocker = blocker
         self.onManage = onManage
         self.onEndSession = onEndSession
+        self.onBypass = onBypass
         self.onQuit = onQuit
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
@@ -40,13 +43,15 @@ final class StatusItemController: NSObject {
     private func updateStatusButton() {
         guard let button = statusItem.button else { return }
 
-        let isBlocking = !blocker.blockedDomains.isEmpty
+        let isBlocking = blocker.isProtectionEnforced
         button.image = MuzzleStatusIcon.make(isActive: isBlocking)
-        button.image?.accessibilityDescription = isBlocking ? "Muzzle is active" : "Muzzle is inactive"
+        button.image?.accessibilityDescription = isBlocking
+            ? "Muzzle is active"
+            : blocker.isBypassActive ? "Muzzle bypass is active" : "Muzzle is inactive"
         button.image?.isTemplate = true
         button.imagePosition = .imageOnly
         button.title = ""
-        button.toolTip = isBlocking ? "Muzzle: active" : "Muzzle: inactive"
+        button.toolTip = isBlocking ? "Muzzle: active" : blocker.isBypassActive ? "Muzzle: bypass active" : "Muzzle: inactive"
     }
 
     private func rebuildMenu() {
@@ -64,9 +69,13 @@ final class StatusItemController: NSObject {
         let manageTitle = blocker.blockedDomains.isEmpty ? "Start blocking…" : "Manage protected websites…"
         menu.addItem(makeItem(manageTitle, action: #selector(manage)))
         menu.addItem(.separator())
-        if blocker.blockedDomains.isEmpty {
+        if blocker.canQuit {
             menu.addItem(makeItem("Quit Muzzle", action: #selector(quit)))
         } else {
+            if !blocker.isBypassActive {
+                menu.addItem(makeItem("Bypass…", action: #selector(bypass)))
+                menu.addItem(.separator())
+            }
             menu.addItem(makeItem("End protection with key…", action: #selector(endSession)))
         }
 
@@ -81,6 +90,7 @@ final class StatusItemController: NSObject {
 
     @objc private func manage() { onManage() }
     @objc private func endSession() { onEndSession() }
+    @objc private func bypass() { onBypass() }
     @objc private func quit() { onQuit() }
 }
 
