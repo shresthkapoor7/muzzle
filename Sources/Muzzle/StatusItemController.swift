@@ -72,15 +72,18 @@ final class StatusItemController: NSObject {
 
         let manageTitle = blocker.blockedDomains.isEmpty ? "Start blocking…" : "Manage protected websites…"
         menu.addItem(makeItem(manageTitle, action: #selector(manage)))
-        menu.addItem(.separator())
         if blocker.canQuit {
+            menu.addItem(.separator())
             menu.addItem(makeItem("Quit Muzzle", action: #selector(quit)))
         } else {
             if blocker.canStartBypass {
-                menu.addItem(makeItem("Bypass… (\(blocker.remainingBypasses) left)", action: #selector(bypass)))
                 menu.addItem(.separator())
+                menu.addItem(makeItem("Bypass… (\(blocker.remainingBypasses) left)", action: #selector(bypass)))
             }
-            menu.addItem(makeItem("End protection with key…", action: #selector(endSession)))
+            if !blocker.isTimedSession {
+                menu.addItem(.separator())
+                menu.addItem(makeItem("End protection with key…", action: #selector(endSession)))
+            }
         }
 
         statusItem.menu = menu

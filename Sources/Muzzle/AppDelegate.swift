@@ -127,10 +127,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             do {
                 try blocker.startBypass(for: minutes)
-                pokeClient.sendBypass(minutes: minutes) { [weak self] result in
-                    DispatchQueue.main.async {
-                        guard let self, case let .failure(error) = result else { return }
-                        self.blocker.present(error: error)
+                if !blocker.isTimedSession {
+                    pokeClient.sendBypass(minutes: minutes) { [weak self] result in
+                        DispatchQueue.main.async {
+                            guard let self, case let .failure(error) = result else { return }
+                            self.blocker.present(error: error)
+                        }
                     }
                 }
                 return

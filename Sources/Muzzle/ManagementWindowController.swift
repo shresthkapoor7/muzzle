@@ -207,6 +207,12 @@ private struct ManagementView: View {
                 Text("Bypass is active. New websites will block when it ends.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+            } else if blocker.isTimedSession {
+                Image(systemName: "clock.fill")
+                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                Text("This timed session ends automatically.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
             } else {
                 Image(systemName: "lock.fill")
                     .foregroundStyle(Color(nsColor: .secondaryLabelColor))
