@@ -17,14 +17,15 @@ struct BypassSessionStore {
         }
     }
 
-    func load() throws -> Date? {
+    func load() throws -> BypassSessionTiming? {
         let url = try storeURL
         guard fileManager.fileExists(atPath: url.path) else { return nil }
-        return try JSONDecoder().decode(BypassSession.self, from: Data(contentsOf: url)).endsAt
+        let session = try JSONDecoder().decode(BypassSession.self, from: Data(contentsOf: url))
+        return BypassSessionTiming(startedAt: session.startedAt, endsAt: session.endsAt)
     }
 
-    func save(endsAt: Date) throws {
-        let data = try JSONEncoder().encode(BypassSession(endsAt: endsAt))
+    func save(startedAt: Date, endsAt: Date) throws {
+        let data = try JSONEncoder().encode(BypassSession(startedAt: startedAt, endsAt: endsAt))
         try data.write(to: try storeURL, options: .atomic)
     }
 
@@ -35,6 +36,12 @@ struct BypassSessionStore {
     }
 }
 
+struct BypassSessionTiming {
+    let startedAt: Date?
+    let endsAt: Date
+}
+
 private struct BypassSession: Codable {
+    let startedAt: Date?
     let endsAt: Date
 }

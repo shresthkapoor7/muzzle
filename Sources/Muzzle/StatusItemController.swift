@@ -44,10 +44,22 @@ final class StatusItemController: NSObject {
         guard let button = statusItem.button else { return }
 
         let isBlocking = blocker.isProtectionEnforced
-        let fillFraction = blocker.isTimedSession && blocker.timedSessionStartDate != nil
-            ? blocker.timedProgress
-            : 1
-        button.image = MuzzleIcon.statusImage(isActive: isBlocking, fillFraction: fillFraction)
+        let isBypassCountdown = blocker.isBypassActive && blocker.bypassSessionStartDate != nil
+        let isTimedCountdown = !blocker.isBypassActive
+            && blocker.isTimedSession
+            && blocker.timedSessionStartDate != nil
+        let fillFraction: Double
+        if isBypassCountdown {
+            fillFraction = blocker.bypassProgress
+        } else if isTimedCountdown {
+            fillFraction = blocker.timedProgress
+        } else {
+            fillFraction = 1
+        }
+        button.image = MuzzleIcon.statusImage(
+            isActive: isBlocking || isBypassCountdown,
+            fillFraction: fillFraction
+        )
         button.image?.accessibilityDescription = isBlocking
             ? "Muzzle is active"
             : blocker.isBypassActive ? "Muzzle bypass is active" : "Muzzle is inactive"

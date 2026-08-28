@@ -50,4 +50,15 @@ final class DomainValidatorTests: XCTestCase {
         XCTAssertFalse(command.contains("-F states"))
         XCTAssertFalse(command.contains("\\n+"))
     }
+
+    func testTimerProgressAdvancesInWholeMinuteSteps() {
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        let end = start.addingTimeInterval(5 * 60)
+
+        XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: start), 0)
+        XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: start.addingTimeInterval(59)), 0)
+        XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: start.addingTimeInterval(60)), 0.2)
+        XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: start.addingTimeInterval(4 * 60)), 0.8)
+        XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: end), 1)
+    }
 }
