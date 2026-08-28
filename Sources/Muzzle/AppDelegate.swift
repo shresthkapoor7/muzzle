@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let pokeClient = PokeClient()
     private var statusItemController: StatusItemController?
     private var managementWindowController: ManagementWindowController?
+    private var workContextAlert: NSAlert?
     private var unlockKey: String = ""
     private var isSecondaryInstance = false
     private var isQuitAuthorized = false
@@ -81,7 +82,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startProtectionSession() {
         unlockKey = UnlockKey.make()
-        requestWorkContextForPokeDelivery()
+        DispatchQueue.main.async { [weak self] in
+            self?.requestWorkContextForPokeDelivery()
+        }
     }
 
     private func requestBypass() {
@@ -139,6 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func requestWorkContextForPokeDelivery() {
+        guard workContextAlert == nil else { return }
+
         showManagementWindow()
         guard let window = managementWindowController?.window else {
             deliverUnlockKeyToPoke()
@@ -158,9 +163,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         alert.window.makeFirstResponder(field)
+        workContextAlert = alert
 
         alert.beginSheetModal(for: window) { [weak self] _ in
             let workingOn = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            self?.workContextAlert = nil
             self?.deliverUnlockKeyToPoke(workingOn: workingOn.isEmpty ? nil : workingOn)
         }
     }
