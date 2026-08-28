@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !blocker.blockedDomains.isEmpty, !blocker.isTimedSession, !blocker.isBypassActive {
             DispatchQueue.main.async { [weak self] in
-                self?.requestWorkContextForRestoredSession()
+                self?.requestWorkContextForPokeDelivery()
             }
         }
     }
@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if managementWindowController == nil {
             managementWindowController = ManagementWindowController(
                 blocker: blocker,
-                onProtectionStarted: { [weak self] workingOn in self?.startProtectionSession(workingOn: workingOn) }
+                onProtectionStarted: { [weak self] in self?.startProtectionSession() }
             )
         }
         managementWindowController?.showWindow(nil)
@@ -79,9 +79,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func startProtectionSession(workingOn: String?) {
+    private func startProtectionSession() {
         unlockKey = UnlockKey.make()
-        deliverUnlockKeyToPoke(workingOn: workingOn)
+        requestWorkContextForPokeDelivery()
     }
 
     private func requestBypass() {
@@ -138,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func requestWorkContextForRestoredSession() {
+    private func requestWorkContextForPokeDelivery() {
         showManagementWindow()
         guard let window = managementWindowController?.window else {
             deliverUnlockKeyToPoke()

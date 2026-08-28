@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 final class ManagementWindowController: NSWindowController {
-    init(blocker: BlockerController, onProtectionStarted: @escaping (String?) -> Void) {
+    init(blocker: BlockerController, onProtectionStarted: @escaping () -> Void) {
         let rootView = ManagementView(blocker: blocker, onProtectionStarted: onProtectionStarted)
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
@@ -23,9 +23,8 @@ final class ManagementWindowController: NSWindowController {
 
 private struct ManagementView: View {
     @ObservedObject var blocker: BlockerController
-    let onProtectionStarted: (String?) -> Void
+    let onProtectionStarted: () -> Void
     @State private var domainInput = ""
-    @State private var workingOnInput = ""
     @State private var blockMode = BlockMode.timed
     @State private var timedMinutesInput = "30"
     @State private var allowedBypasses = 1
@@ -111,13 +110,6 @@ private struct ManagementView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                    } else {
-                        GridRow(alignment: .center) {
-                            formLabel("Working on")
-                            TextField("Optional note for Poke", text: $workingOnInput)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityLabel("What you are working on")
-                        }
                     }
 
                     GridRow(alignment: .center) {
@@ -140,7 +132,11 @@ private struct ManagementView: View {
             }
 
             if blocker.blockedDomains.isEmpty {
-                Text("Timed sessions do not notify Poke. Each bypass temporarily restores access for a duration you choose.")
+                Text(
+                    blockMode == .timed
+                        ? "Timed sessions do not notify Poke. Each bypass temporarily restores access for a duration you choose."
+                        : "Muzzle will ask for an optional Poke note after blocking starts. Each bypass temporarily restores access for a duration you choose."
+                )
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -233,13 +229,11 @@ private struct ManagementView: View {
             allowedBypasses: wasInactive ? allowedBypasses : 1
         )
         if wasInactive, !blocker.blockedDomains.isEmpty {
-            let workingOn = workingOnInput.trimmingCharacters(in: .whitespacesAndNewlines)
             if blockMode == .untilEnded {
-                onProtectionStarted(workingOn.isEmpty ? nil : workingOn)
+                onProtectionStarted()
             }
         }
         domainInput = ""
-        workingOnInput = ""
     }
 
     private var timedMinutes: Int? {
