@@ -21,23 +21,43 @@ struct PacketFilterController {
         }
     }
 
-    func makeStagingAnchor(for domains: [String]) throws -> URL {
+    func makeStagingAnchor(for domains: [String]) throws -> (
+        url: URL,
+        ipv4Addresses: [String],
+        ipv6Addresses: [String]
+    ) {
         let addresses = resolveAddresses(for: domains)
         guard !addresses.ipv4.isEmpty || !addresses.ipv6.isEmpty else {
             throw PacketFilterError.noResolvedAddresses
         }
         let anchorRules = rules(ipv4Addresses: addresses.ipv4, ipv6Addresses: addresses.ipv6)
-        return try makeStagingAnchor(rules: anchorRules)
+        return (
+            url: try makeStagingAnchor(rules: anchorRules),
+            ipv4Addresses: addresses.ipv4,
+            ipv6Addresses: addresses.ipv6
+        )
     }
 
-    func installCommand(anchor: URL) -> String {
+    func installCommand(anchor: URL, ipv4Addresses: [String], ipv6Addresses: [String]) -> String {
         """
         \(removeLegacyCommand()) && \\
         /usr/bin/install -d -m 755 /etc/pf.anchors && \\
         /usr/bin/install -m 600 \(shellQuote(anchor.path)) \(shellQuote(anchorURL.path)) && \\
         /sbin/pfctl -a \(anchorName) -f \(shellQuote(anchorURL.path)) && \\
-        (/sbin/pfctl -e >/dev/null 2>&1 || true)
+        (/sbin/pfctl -e >/dev/null 2>&1 || true) && \\
+        \(terminateExistingStatesCommand(ipv4Addresses: ipv4Addresses, ipv6Addresses: ipv6Addresses))
         """
+    }
+
+    func terminateExistingStatesCommand(ipv4Addresses: [String], ipv6Addresses: [String]) -> String {
+        let ipv4Commands = ipv4Addresses.sorted().map { address in
+            "/sbin/pfctl -k 0.0.0.0/0 -k \(shellQuote(address))"
+        }
+        let ipv6Commands = ipv6Addresses.sorted().map { address in
+            "/sbin/pfctl -k ::/0 -k \(shellQuote(address))"
+        }
+        let commands = ipv4Commands + ipv6Commands
+        return commands.isEmpty ? ":" : commands.joined(separator: " && ")
     }
 
     func removeCommand() -> String {

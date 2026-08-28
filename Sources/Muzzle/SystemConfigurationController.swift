@@ -26,9 +26,13 @@ struct SystemConfigurationController {
         if domains.isEmpty {
             packetFilterCommand = packetFilterController.removeCommand()
         } else {
-            let anchorStagingURL = try packetFilterController.makeStagingAnchor(for: domains)
-            packetFilterStagingDirectory = anchorStagingURL.deletingLastPathComponent()
-            packetFilterCommand = packetFilterController.installCommand(anchor: anchorStagingURL)
+            let stagedAnchor = try packetFilterController.makeStagingAnchor(for: domains)
+            packetFilterStagingDirectory = stagedAnchor.url.deletingLastPathComponent()
+            packetFilterCommand = packetFilterController.installCommand(
+                anchor: stagedAnchor.url,
+                ipv4Addresses: stagedAnchor.ipv4Addresses,
+                ipv6Addresses: stagedAnchor.ipv6Addresses
+            )
         }
         defer {
             if let packetFilterStagingDirectory {

@@ -38,4 +38,16 @@ final class DomainValidatorTests: XCTestCase {
         XCTAssertTrue(rules.contains("muzzle_ipv4"))
         XCTAssertFalse(rules.contains("muzzle_ipv6"))
     }
+
+    func testPacketFilterStateTerminationTargetsOnlyBlockedDestinations() {
+        let command = PacketFilterController().terminateExistingStatesCommand(
+            ipv4Addresses: ["104.21.31.40"],
+            ipv6Addresses: ["2606:4700:3033::6815:1f28"]
+        )
+
+        XCTAssertTrue(command.contains("pfctl -k 0.0.0.0/0 -k '104.21.31.40'"))
+        XCTAssertTrue(command.contains("pfctl -k ::/0 -k '2606:4700:3033::6815:1f28'"))
+        XCTAssertFalse(command.contains("-F states"))
+        XCTAssertFalse(command.contains("\\n+"))
+    }
 }
