@@ -8,8 +8,8 @@ final class ManagementWindowController: NSWindowController {
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Muzzle"
-        window.setContentSize(NSSize(width: 520, height: 575))
-        window.minSize = NSSize(width: 460, height: 500)
+        window.setContentSize(NSSize(width: 560, height: 620))
+        window.minSize = NSSize(width: 500, height: 540)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
         window.center()
@@ -33,7 +33,7 @@ private struct ManagementView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             header
-            addWebsiteForm
+            setupPanel
             blockedList
             Spacer(minLength: 0)
             footer
@@ -61,79 +61,103 @@ private struct ManagementView: View {
             Text(blocker.statusMessage)
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
-            Text("Protection is locked for this session.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
         }
     }
 
-    private var addWebsiteForm: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Block a website")
-                .font(.system(size: 13, weight: .semibold))
-            HStack(spacing: 8) {
-                TextField("example.com", text: $domainInput)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Website domain")
-                    .onSubmit(addDomain)
-                Button("Block", action: addDomain)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isBlockDisabled)
-                    .accessibilityHint("Adds this website to the hosts-file block list")
-            }
-            if blocker.blockedDomains.isEmpty {
-                Picker("Block duration", selection: $blockMode) {
-                    ForEach(BlockMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
+    private var setupPanel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(blocker.blockedDomains.isEmpty ? "Start protection" : "Add a protected website")
+                .font(.system(size: 15, weight: .semibold))
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
+                GridRow(alignment: .center) {
+                    formLabel("Website")
+                    HStack(spacing: 8) {
+                        TextField("example.com", text: $domainInput)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("Website domain")
+                            .onSubmit(addDomain)
+                        Button("Block", action: addDomain)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isBlockDisabled)
+                            .accessibilityHint("Adds this website to the hosts-file block list")
                     }
                 }
-                .pickerStyle(.segmented)
 
-                HStack(spacing: 10) {
-                    Text("Bypasses allowed")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    Picker("Bypasses allowed", selection: $allowedBypasses) {
-                        ForEach(0...3, id: \.self) { count in
-                            Text("\(count)").tag(count)
+                if blocker.blockedDomains.isEmpty {
+                    GridRow(alignment: .center) {
+                        formLabel("Session")
+                        Picker("Block duration", selection: $blockMode) {
+                            ForEach(BlockMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                    }
+
+                    if blockMode == .timed {
+                        GridRow(alignment: .center) {
+                            formLabel("Duration")
+                            HStack(spacing: 8) {
+                                TextField("30", text: $timedMinutesInput)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 72)
+                                    .multilineTextAlignment(.trailing)
+                                    .accessibilityLabel("Block duration in minutes")
+                                    .help("Enter a positive whole number of minutes")
+                                Text("minutes")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } else {
+                        GridRow(alignment: .center) {
+                            formLabel("Working on")
+                            TextField("Optional note for Poke", text: $workingOnInput)
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityLabel("What you are working on")
                         }
                     }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(width: 152)
+
+                    GridRow(alignment: .center) {
+                        formLabel("Bypasses")
+                        HStack(spacing: 10) {
+                            Picker("Bypasses allowed", selection: $allowedBypasses) {
+                                ForEach(0...3, id: \.self) { count in
+                                    Text("\(count)").tag(count)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(width: 152)
+                            Text("allowed")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
-                Text("Each bypass temporarily restores access for a duration you choose.")
+            }
+
+            if blocker.blockedDomains.isEmpty {
+                Text("Timed sessions do not notify Poke. Each bypass temporarily restores access for a duration you choose.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-
-                if blockMode == .timed {
-                    HStack(spacing: 8) {
-                        Text("Block for")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                        TextField("30", text: $timedMinutesInput)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 72)
-                            .multilineTextAlignment(.trailing)
-                            .accessibilityLabel("Block duration in minutes")
-                            .help("Enter a positive whole number of minutes")
-                        Text("minutes")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                    Text("Timed blocks do not notify Poke.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                } else {
-                    TextField("What are you working on? (optional)", text: $workingOnInput)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("What you are working on")
-                }
             }
             Text("Use a domain only — for example, youtube.com. Its www version is blocked too.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
         }
+        .padding(18)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func formLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.secondary)
+            .frame(width: 80, alignment: .trailing)
     }
 
     private var blockedList: some View {
