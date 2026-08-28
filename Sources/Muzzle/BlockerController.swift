@@ -271,11 +271,13 @@ final class BlockerController: ObservableObject {
               timedSessionEndDate != nil,
               !isBypassActive else { return }
 
-        progressTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.updateTimedProgress()
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        progressTimer = timer
     }
 
     private func updateTimedProgress() {

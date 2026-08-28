@@ -14,7 +14,15 @@ enum MuzzleIcon {
                 mask.stroke()
                 NSGraphicsContext.saveGraphicsState()
                 mask.addClip()
-                NSBezierPath(rect: NSRect(x: 0, y: 0, width: size.width, height: size.height * fraction)).fill()
+                let maskBounds = mask.bounds
+                NSBezierPath(
+                    rect: NSRect(
+                        x: maskBounds.minX,
+                        y: maskBounds.minY,
+                        width: maskBounds.width,
+                        height: maskBounds.height * fraction
+                    )
+                ).fill()
                 NSGraphicsContext.current?.compositingOperation = .clear
                 drawGrille()
                 NSGraphicsContext.restoreGraphicsState()
