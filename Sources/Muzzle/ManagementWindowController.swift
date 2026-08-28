@@ -86,26 +86,24 @@ private struct ManagementView: View {
                 if blocker.blockedDomains.isEmpty {
                     GridRow(alignment: .center) {
                         formLabel("Session")
-                        Picker("Block duration", selection: $blockMode) {
-                            ForEach(BlockMode.allCases) { mode in
-                                Text(mode.title).tag(mode)
+                        HStack(spacing: 10) {
+                            Picker("Block duration", selection: $blockMode) {
+                                ForEach(BlockMode.allCases) { mode in
+                                    Text(mode.title).tag(mode)
+                                }
                             }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                    }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .frame(width: 250)
 
-                    if blockMode == .timed {
-                        GridRow(alignment: .center) {
-                            formLabel("Duration")
-                            HStack(spacing: 8) {
+                            if blockMode == .timed {
                                 TextField("30", text: $timedMinutesInput)
                                     .textFieldStyle(.roundedBorder)
-                                    .frame(width: 72)
+                                    .frame(width: 56)
                                     .multilineTextAlignment(.trailing)
                                     .accessibilityLabel("Block duration in minutes")
                                     .help("Enter a positive whole number of minutes")
-                                Text("minutes")
+                                Text("min")
                                     .font(.system(size: 12))
                                     .foregroundStyle(.secondary)
                             }
@@ -134,13 +132,13 @@ private struct ManagementView: View {
             if blocker.blockedDomains.isEmpty {
                 Text(
                     blockMode == .timed
-                        ? "Timed sessions do not notify Poke. Each bypass temporarily restores access for a duration you choose."
-                        : "Muzzle will ask for an optional Poke note after blocking starts. Each bypass temporarily restores access for a duration you choose."
+                        ? "Timed sessions do not notify Poke. Bypasses temporarily restore access."
+                        : "Muzzle asks for an optional Poke note after locking. Bypasses temporarily restore access."
                 )
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
-            Text("Use a domain only — for example, youtube.com. Its www version is blocked too.")
+            Text("Use a domain such as youtube.com; its www version is included too.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
         }
