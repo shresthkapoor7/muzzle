@@ -79,10 +79,6 @@ final class BlockerController: ObservableObject {
         allowedBypasses: Int = 1
     ) {
         do {
-            guard !isBypassActive else {
-                statusMessage = "End the bypass before changing protected websites."
-                return
-            }
             let domain = try DomainValidator.normalizedDomain(from: rawValue)
             guard !blockedDomains.contains(domain) else {
                 statusMessage = "\(domain) is already blocked."
@@ -201,7 +197,9 @@ final class BlockerController: ObservableObject {
         defer { isApplying = false }
 
         do {
-            try systemConfigurationController.apply(blockedDomains)
+            if !isBypassActive {
+                try systemConfigurationController.apply(blockedDomains)
+            }
             try domainStore.save(blockedDomains)
             if let timedSessionEndDate {
                 try timedSessionStore.save(startedAt: timedSessionStartDate, endsAt: timedSessionEndDate)
@@ -213,10 +211,12 @@ final class BlockerController: ObservableObject {
             scheduleProgressTimer()
             refreshStatus()
         } catch {
-            if previousDomains.isEmpty {
-                try? systemConfigurationController.apply([])
-            } else {
-                try? systemConfigurationController.apply(previousDomains)
+            if !isBypassActive {
+                if previousDomains.isEmpty {
+                    try? systemConfigurationController.apply([])
+                } else {
+                    try? systemConfigurationController.apply(previousDomains)
+                }
             }
             blockedDomains = previousDomains
             timedSessionStartDate = previousTimedSessionStartDate

@@ -207,6 +207,12 @@ private struct ManagementView: View {
                 Text("Updating macOS hosts file…")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+            } else if blocker.isBypassActive {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                Text("Bypass is active. New websites will block when it ends.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
             } else {
                 Image(systemName: "lock.fill")
                     .foregroundStyle(Color(nsColor: .secondaryLabelColor))
