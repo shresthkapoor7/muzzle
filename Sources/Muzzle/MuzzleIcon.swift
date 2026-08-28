@@ -1,7 +1,7 @@
 import AppKit
 
 enum MuzzleIcon {
-    static func statusImage(isActive: Bool) -> NSImage {
+    static func statusImage(isActive: Bool, fillFraction: CGFloat = 1) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { _ in
             let mask = maskPath()
@@ -9,8 +9,12 @@ enum MuzzleIcon {
             NSColor.black.setFill()
 
             if isActive {
-                mask.fill()
+                let fraction = min(max(fillFraction, 0), 1)
+                mask.lineWidth = 1.65
+                mask.stroke()
                 NSGraphicsContext.saveGraphicsState()
+                mask.addClip()
+                NSBezierPath(rect: NSRect(x: 0, y: 0, width: size.width, height: size.height * fraction)).fill()
                 NSGraphicsContext.current?.compositingOperation = .clear
                 drawGrille()
                 NSGraphicsContext.restoreGraphicsState()

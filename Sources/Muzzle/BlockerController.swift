@@ -5,7 +5,9 @@ import Foundation
 @MainActor
 final class BlockerController: ObservableObject {
     @Published private(set) var blockedDomains: [String] = []
+    @Published private(set) var timedSessionStartDate: Date?
     @Published private(set) var timedSessionEndDate: Date?
+    @Published private(set) var timedProgress: Double = 0
     @Published private(set) var bypassEndDate: Date?
     @Published private(set) var remainingBypasses = 0
     @Published private(set) var isApplying = false
@@ -18,6 +20,7 @@ final class BlockerController: ObservableObject {
     private let bypassAllowanceStore = BypassAllowanceStore()
     private let systemConfigurationController = SystemConfigurationController()
     private var expiryTimer: Timer?
+    private var progressTimer: Timer?
     private var bypassTimer: Timer?
     private var needsExpiredSessionCleanup = false
 
@@ -30,13 +33,16 @@ final class BlockerController: ObservableObject {
 
     func load() throws {
         blockedDomains = try domainStore.load()
-        timedSessionEndDate = try timedSessionStore.load()
+        let timedSession = try timedSessionStore.load()
+        timedSessionStartDate = timedSession?.startedAt
+        timedSessionEndDate = timedSession?.endsAt
         bypassEndDate = try bypassSessionStore.load()
         let storedBypassAllowance = try bypassAllowanceStore.load()
 
         if let timedSessionEndDate, timedSessionEndDate <= Date() {
             needsExpiredSessionCleanup = !blockedDomains.isEmpty
             blockedDomains = []
+            self.timedSessionStartDate = nil
             self.timedSessionEndDate = nil
             bypassEndDate = nil
             remainingBypasses = 0
@@ -46,6 +52,7 @@ final class BlockerController: ObservableObject {
             try bypassAllowanceStore.clear()
         } else if blockedDomains.isEmpty {
             self.timedSessionEndDate = nil
+            self.timedSessionStartDate = nil
             self.bypassEndDate = nil
             remainingBypasses = 0
             try timedSessionStore.clear()
@@ -61,6 +68,7 @@ final class BlockerController: ObservableObject {
         }
 
         scheduleExpiryTimer()
+        scheduleProgressTimer()
         scheduleBypassTimer()
         refreshStatus()
     }
@@ -87,18 +95,22 @@ final class BlockerController: ObservableObject {
             }
 
             let previousDomains = blockedDomains
+            let previousTimedSessionStartDate = timedSessionStartDate
             let previousTimedSessionEndDate = timedSessionEndDate
             let previousRemainingBypasses = remainingBypasses
             blockedDomains.append(domain)
             blockedDomains.sort()
             if previousDomains.isEmpty, let timedDurationMinutes {
-                timedSessionEndDate = Date().addingTimeInterval(TimeInterval(timedDurationMinutes * 60))
+                let startDate = Date()
+                timedSessionStartDate = startDate
+                timedSessionEndDate = startDate.addingTimeInterval(TimeInterval(timedDurationMinutes * 60))
             }
             if previousDomains.isEmpty {
                 remainingBypasses = allowedBypasses
             }
             try persistAndApply(
                 revertingTo: previousDomains,
+                previousTimedSessionStartDate: previousTimedSessionStartDate,
                 previousTimedSessionEndDate: previousTimedSessionEndDate,
                 previousRemainingBypasses: previousRemainingBypasses
             )
@@ -127,7 +139,9 @@ final class BlockerController: ObservableObject {
         defer { isApplying = false }
         try systemConfigurationController.apply([])
         blockedDomains = []
+        timedSessionStartDate = nil
         timedSessionEndDate = nil
+        timedProgress = 0
         bypassEndDate = nil
         remainingBypasses = 0
         try domainStore.save([])
@@ -136,6 +150,8 @@ final class BlockerController: ObservableObject {
         try bypassAllowanceStore.clear()
         expiryTimer?.invalidate()
         expiryTimer = nil
+        progressTimer?.invalidate()
+        progressTimer = nil
         bypassTimer?.invalidate()
         bypassTimer = nil
         refreshStatus()
@@ -156,6 +172,7 @@ final class BlockerController: ObservableObject {
             try bypassAllowanceStore.save(remaining: remainingBypasses - 1)
             bypassEndDate = endDate
             remainingBypasses -= 1
+            scheduleProgressTimer()
             scheduleBypassTimer()
             refreshStatus()
         } catch {
@@ -176,6 +193,7 @@ final class BlockerController: ObservableObject {
 
     private func persistAndApply(
         revertingTo previousDomains: [String],
+        previousTimedSessionStartDate: Date?,
         previousTimedSessionEndDate: Date?,
         previousRemainingBypasses: Int
     ) throws {
@@ -186,12 +204,13 @@ final class BlockerController: ObservableObject {
             try systemConfigurationController.apply(blockedDomains)
             try domainStore.save(blockedDomains)
             if let timedSessionEndDate {
-                try timedSessionStore.save(endsAt: timedSessionEndDate)
+                try timedSessionStore.save(startedAt: timedSessionStartDate, endsAt: timedSessionEndDate)
             } else {
                 try timedSessionStore.clear()
             }
             try bypassAllowanceStore.save(remaining: remainingBypasses)
             scheduleExpiryTimer()
+            scheduleProgressTimer()
             refreshStatus()
         } catch {
             if previousDomains.isEmpty {
@@ -200,9 +219,11 @@ final class BlockerController: ObservableObject {
                 try? systemConfigurationController.apply(previousDomains)
             }
             blockedDomains = previousDomains
+            timedSessionStartDate = previousTimedSessionStartDate
             timedSessionEndDate = previousTimedSessionEndDate
             remainingBypasses = previousRemainingBypasses
             scheduleExpiryTimer()
+            scheduleProgressTimer()
             throw error
         }
     }
@@ -239,6 +260,39 @@ final class BlockerController: ObservableObject {
                 self?.expireTimedProtection()
             }
         }
+    }
+
+    private func scheduleProgressTimer() {
+        progressTimer?.invalidate()
+        progressTimer = nil
+        updateTimedProgress()
+
+        guard timedSessionStartDate != nil,
+              timedSessionEndDate != nil,
+              !isBypassActive else { return }
+
+        progressTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateTimedProgress()
+            }
+        }
+    }
+
+    private func updateTimedProgress() {
+        guard !isBypassActive,
+              let timedSessionStartDate,
+              let timedSessionEndDate else {
+            timedProgress = 0
+            return
+        }
+
+        let duration = timedSessionEndDate.timeIntervalSince(timedSessionStartDate)
+        guard duration > 0 else {
+            timedProgress = 1
+            return
+        }
+        let elapsed = Date().timeIntervalSince(timedSessionStartDate)
+        timedProgress = min(max(elapsed / duration, 0), 1)
     }
 
     private func expireTimedProtection() {
@@ -278,6 +332,7 @@ final class BlockerController: ObservableObject {
             bypassEndDate = nil
             bypassTimer?.invalidate()
             bypassTimer = nil
+            scheduleProgressTimer()
             refreshStatus()
         } catch {
             present(error: error)

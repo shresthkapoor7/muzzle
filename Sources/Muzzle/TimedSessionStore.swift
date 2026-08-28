@@ -17,14 +17,15 @@ struct TimedSessionStore {
         }
     }
 
-    func load() throws -> Date? {
+    func load() throws -> TimedSessionTiming? {
         let url = try storeURL
         guard fileManager.fileExists(atPath: url.path) else { return nil }
-        return try JSONDecoder().decode(TimedSession.self, from: Data(contentsOf: url)).endsAt
+        let session = try JSONDecoder().decode(TimedSession.self, from: Data(contentsOf: url))
+        return TimedSessionTiming(startedAt: session.startedAt, endsAt: session.endsAt)
     }
 
-    func save(endsAt: Date) throws {
-        let data = try JSONEncoder().encode(TimedSession(endsAt: endsAt))
+    func save(startedAt: Date?, endsAt: Date) throws {
+        let data = try JSONEncoder().encode(TimedSession(startedAt: startedAt, endsAt: endsAt))
         try data.write(to: try storeURL, options: .atomic)
     }
 
@@ -35,6 +36,12 @@ struct TimedSessionStore {
     }
 }
 
+struct TimedSessionTiming {
+    let startedAt: Date?
+    let endsAt: Date
+}
+
 private struct TimedSession: Codable {
+    let startedAt: Date?
     let endsAt: Date
 }
