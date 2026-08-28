@@ -47,6 +47,7 @@ final class DomainValidatorTests: XCTestCase {
 
         XCTAssertTrue(command.contains("pfctl -k 0.0.0.0/0 -k '104.21.31.40'"))
         XCTAssertTrue(command.contains("pfctl -k ::/0 -k '2606:4700:3033::6815:1f28'"))
+        XCTAssertTrue(command.contains("|| true"))
         XCTAssertFalse(command.contains("-F states"))
         XCTAssertFalse(command.contains("\\n+"))
     }

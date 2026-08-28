@@ -51,10 +51,10 @@ struct PacketFilterController {
 
     func terminateExistingStatesCommand(ipv4Addresses: [String], ipv6Addresses: [String]) -> String {
         let ipv4Commands = ipv4Addresses.sorted().map { address in
-            "/sbin/pfctl -k 0.0.0.0/0 -k \(shellQuote(address))"
+            "(/sbin/pfctl -k 0.0.0.0/0 -k \(shellQuote(address)) >/dev/null 2>&1 || true)"
         }
         let ipv6Commands = ipv6Addresses.sorted().map { address in
-            "/sbin/pfctl -k ::/0 -k \(shellQuote(address))"
+            "(/sbin/pfctl -k ::/0 -k \(shellQuote(address)) >/dev/null 2>&1 || true)"
         }
         let commands = ipv4Commands + ipv6Commands
         return commands.isEmpty ? ":" : commands.joined(separator: " && ")
@@ -86,19 +86,35 @@ struct PacketFilterController {
     private func resolveAddresses(for domains: [String]) -> (ipv4: [String], ipv6: [String]) {
         var ipv4 = Set<String>()
         var ipv6 = Set<String>()
+        let hostnames = domains
+            .flatMap { [$0, "www.\($0)"] }
+            .sorted()
+        let resolvers: [String?] = [nil, "1.1.1.1", "8.8.8.8"]
 
-        for domain in domains {
-            ipv4.formUnion(dnsAnswers(recordType: "A", domain: domain).filter(isIPv4Address))
-            ipv6.formUnion(dnsAnswers(recordType: "AAAA", domain: domain).filter(isIPv6Address))
+        for resolver in resolvers {
+            ipv4.formUnion(
+                dnsAnswers(recordType: "A", domains: hostnames, resolver: resolver)
+                    .filter(isIPv4Address)
+            )
+            ipv6.formUnion(
+                dnsAnswers(recordType: "AAAA", domains: hostnames, resolver: resolver)
+                    .filter(isIPv6Address)
+            )
         }
         return (Array(ipv4), Array(ipv6))
     }
 
-    private func dnsAnswers(recordType: String, domain: String) -> [String] {
+    private func dnsAnswers(recordType: String, domains: [String], resolver: String?) -> [String] {
         let process = Process()
         let output = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/dig")
-        process.arguments = ["+short", recordType, domain]
+        var arguments = ["+short", "+time=1", "+tries=1"]
+        if let resolver {
+            arguments.append("@\(resolver)")
+        }
+        arguments.append(recordType)
+        arguments.append(contentsOf: domains)
+        process.arguments = arguments
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
 
