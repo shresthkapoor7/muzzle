@@ -89,31 +89,16 @@ struct PacketFilterController {
         let hostnames = domains
             .flatMap { [$0, "www.\($0)"] }
             .sorted()
-        let resolvers: [String?] = [nil, "1.1.1.1", "8.8.8.8"]
-
-        for resolver in resolvers {
-            ipv4.formUnion(
-                dnsAnswers(recordType: "A", domains: hostnames, resolver: resolver)
-                    .filter(isIPv4Address)
-            )
-            ipv6.formUnion(
-                dnsAnswers(recordType: "AAAA", domains: hostnames, resolver: resolver)
-                    .filter(isIPv6Address)
-            )
-        }
+        ipv4.formUnion(dnsAnswers(recordType: "A", domains: hostnames).filter(isIPv4Address))
+        ipv6.formUnion(dnsAnswers(recordType: "AAAA", domains: hostnames).filter(isIPv6Address))
         return (Array(ipv4), Array(ipv6))
     }
 
-    private func dnsAnswers(recordType: String, domains: [String], resolver: String?) -> [String] {
+    private func dnsAnswers(recordType: String, domains: [String]) -> [String] {
         let process = Process()
         let output = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/dig")
-        var arguments = ["+short", "+time=1", "+tries=1"]
-        if let resolver {
-            arguments.append("@\(resolver)")
-        }
-        arguments.append(recordType)
-        arguments.append(contentsOf: domains)
+        let arguments = ["+short", "+time=1", "+tries=1", recordType] + domains
         process.arguments = arguments
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice

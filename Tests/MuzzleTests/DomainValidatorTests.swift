@@ -62,4 +62,10 @@ final class DomainValidatorTests: XCTestCase {
         XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: start.addingTimeInterval(4 * 60)), 0.8)
         XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: end), 1)
     }
+
+    func testDurationValidatorRejectsOverflowingMinutes() {
+        XCTAssertEqual(DurationValidator.seconds(for: 5), 300)
+        XCTAssertNil(DurationValidator.seconds(for: 0))
+        XCTAssertNil(DurationValidator.seconds(for: Int.max))
+    }
 }

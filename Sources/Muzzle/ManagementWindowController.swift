@@ -242,7 +242,7 @@ private struct ManagementView: View {
 
     private var timedMinutes: Int? {
         let value = timedMinutesInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let minutes = Int(value), minutes > 0 else { return nil }
+        guard let minutes = Int(value), DurationValidator.seconds(for: minutes) != nil else { return nil }
         return minutes
     }
 

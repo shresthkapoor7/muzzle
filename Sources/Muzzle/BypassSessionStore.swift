@@ -24,7 +24,7 @@ struct BypassSessionStore {
         return BypassSessionTiming(startedAt: session.startedAt, endsAt: session.endsAt)
     }
 
-    func save(startedAt: Date, endsAt: Date) throws {
+    func save(startedAt: Date?, endsAt: Date) throws {
         let data = try JSONEncoder().encode(BypassSession(startedAt: startedAt, endsAt: endsAt))
         try data.write(to: try storeURL, options: .atomic)
     }

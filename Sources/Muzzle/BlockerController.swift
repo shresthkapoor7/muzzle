@@ -4,6 +4,13 @@ import Foundation
 
 @MainActor
 final class BlockerController: ObservableObject {
+    private struct SessionState {
+        let domains: [String]
+        let timedSession: TimedSessionTiming?
+        let bypassSession: BypassSessionTiming?
+        let remainingBypasses: Int?
+    }
+
     @Published private(set) var blockedDomains: [String] = []
     @Published private(set) var timedSessionStartDate: Date?
     @Published private(set) var timedSessionEndDate: Date?
@@ -99,26 +106,29 @@ final class BlockerController: ObservableObject {
                     throw BlockerError.invalidBypassAllowance
                 }
             }
+            let timedDurationSeconds: Int?
+            if blockedDomains.isEmpty, let timedDurationMinutes {
+                guard let seconds = DurationValidator.seconds(for: timedDurationMinutes) else {
+                    throw BlockerError.invalidBlockDuration
+                }
+                timedDurationSeconds = seconds
+            } else {
+                timedDurationSeconds = nil
+            }
 
-            let previousDomains = blockedDomains
-            let previousTimedSessionStartDate = timedSessionStartDate
-            let previousTimedSessionEndDate = timedSessionEndDate
-            let previousRemainingBypasses = remainingBypasses
+            let previousState = currentSessionState
             blockedDomains.append(domain)
             blockedDomains.sort()
-            if previousDomains.isEmpty, let timedDurationMinutes {
+            if previousState.domains.isEmpty, let timedDurationSeconds {
                 let startDate = Date()
                 timedSessionStartDate = startDate
-                timedSessionEndDate = startDate.addingTimeInterval(TimeInterval(timedDurationMinutes * 60))
+                timedSessionEndDate = startDate.addingTimeInterval(TimeInterval(timedDurationSeconds))
             }
-            if previousDomains.isEmpty {
+            if previousState.domains.isEmpty {
                 remainingBypasses = allowedBypasses
             }
             try persistAndApply(
-                revertingTo: previousDomains,
-                previousTimedSessionStartDate: previousTimedSessionStartDate,
-                previousTimedSessionEndDate: previousTimedSessionEndDate,
-                previousRemainingBypasses: previousRemainingBypasses
+                revertingTo: previousState
             )
         } catch {
             present(error: error)
@@ -141,6 +151,7 @@ final class BlockerController: ObservableObject {
     }
 
     func endProtection() throws {
+        let previousState = currentSessionState
         isApplying = true
         defer { isApplying = false }
         try systemConfigurationController.apply([])
@@ -152,10 +163,13 @@ final class BlockerController: ObservableObject {
         bypassEndDate = nil
         bypassProgress = 0
         remainingBypasses = 0
-        try domainStore.save([])
-        try timedSessionStore.clear()
-        try bypassSessionStore.clear()
-        try bypassAllowanceStore.clear()
+        do {
+            try persistCurrentSessionState()
+        } catch {
+            restoreInMemoryState(previousState)
+            try? applySystemState(previousState)
+            throw error
+        }
         expiryTimer?.invalidate()
         expiryTimer = nil
         progressTimer?.invalidate()
@@ -170,13 +184,16 @@ final class BlockerController: ObservableObject {
         guard !blockedDomains.isEmpty else { throw BlockerError.noProtectedWebsites }
         guard !isBypassActive else { throw BlockerError.bypassAlreadyActive }
         guard remainingBypasses > 0 else { throw BlockerError.noBypassesRemaining }
+        guard let durationSeconds = DurationValidator.seconds(for: minutes) else {
+            throw BlockerError.invalidBypassDuration
+        }
 
         isApplying = true
         defer { isApplying = false }
         try systemConfigurationController.apply([])
         do {
             let startDate = Date()
-            let endDate = startDate.addingTimeInterval(TimeInterval(minutes * 60))
+            let endDate = startDate.addingTimeInterval(TimeInterval(durationSeconds))
             try bypassSessionStore.save(startedAt: startDate, endsAt: endDate)
             try bypassAllowanceStore.save(remaining: remainingBypasses - 1)
             bypassSessionStartDate = startDate
@@ -206,10 +223,7 @@ final class BlockerController: ObservableObject {
     }
 
     private func persistAndApply(
-        revertingTo previousDomains: [String],
-        previousTimedSessionStartDate: Date?,
-        previousTimedSessionEndDate: Date?,
-        previousRemainingBypasses: Int
+        revertingTo previousState: SessionState
     ) throws {
         isApplying = true
         defer { isApplying = false }
@@ -218,32 +232,89 @@ final class BlockerController: ObservableObject {
             if !isBypassActive {
                 try systemConfigurationController.apply(blockedDomains)
             }
-            try domainStore.save(blockedDomains)
-            if let timedSessionEndDate {
-                try timedSessionStore.save(startedAt: timedSessionStartDate, endsAt: timedSessionEndDate)
-            } else {
-                try timedSessionStore.clear()
-            }
-            try bypassAllowanceStore.save(remaining: remainingBypasses)
+            try persistCurrentSessionState()
             scheduleExpiryTimer()
             scheduleProgressTimer()
             refreshStatus()
         } catch {
             if !isBypassActive {
-                if previousDomains.isEmpty {
-                    try? systemConfigurationController.apply([])
-                } else {
-                    try? systemConfigurationController.apply(previousDomains)
-                }
+                try? applySystemState(previousState)
             }
-            blockedDomains = previousDomains
-            timedSessionStartDate = previousTimedSessionStartDate
-            timedSessionEndDate = previousTimedSessionEndDate
-            remainingBypasses = previousRemainingBypasses
+            restoreInMemoryState(previousState)
             scheduleExpiryTimer()
             scheduleProgressTimer()
             throw error
         }
+    }
+
+    private var currentSessionState: SessionState {
+        SessionState(
+            domains: blockedDomains,
+            timedSession: timedSessionEndDate.map {
+                TimedSessionTiming(startedAt: timedSessionStartDate, endsAt: $0)
+            },
+            bypassSession: bypassEndDate.map {
+                BypassSessionTiming(startedAt: bypassSessionStartDate, endsAt: $0)
+            },
+            remainingBypasses: blockedDomains.isEmpty ? nil : remainingBypasses
+        )
+    }
+
+    private func persistCurrentSessionState() throws {
+        let previousState = try persistedSessionState()
+        do {
+            try writePersistedSessionState(currentSessionState)
+        } catch {
+            try? writePersistedSessionState(previousState)
+            throw error
+        }
+    }
+
+    private func persistedSessionState() throws -> SessionState {
+        let domains = try domainStore.load()
+        let timedSession = try timedSessionStore.load()
+        let bypassSession = try bypassSessionStore.load()
+        let remainingBypasses = try bypassAllowanceStore.load()
+        return SessionState(
+            domains: domains,
+            timedSession: timedSession,
+            bypassSession: bypassSession,
+            remainingBypasses: remainingBypasses
+        )
+    }
+
+    private func writePersistedSessionState(_ state: SessionState) throws {
+        try domainStore.save(state.domains)
+        if let timedSession = state.timedSession {
+            try timedSessionStore.save(startedAt: timedSession.startedAt, endsAt: timedSession.endsAt)
+        } else {
+            try timedSessionStore.clear()
+        }
+        if let bypassSession = state.bypassSession {
+            try bypassSessionStore.save(startedAt: bypassSession.startedAt, endsAt: bypassSession.endsAt)
+        } else {
+            try bypassSessionStore.clear()
+        }
+        if let remainingBypasses = state.remainingBypasses {
+            try bypassAllowanceStore.save(remaining: remainingBypasses)
+        } else {
+            try bypassAllowanceStore.clear()
+        }
+    }
+
+    private func restoreInMemoryState(_ state: SessionState) {
+        blockedDomains = state.domains
+        timedSessionStartDate = state.timedSession?.startedAt
+        timedSessionEndDate = state.timedSession?.endsAt
+        timedProgress = 0
+        bypassSessionStartDate = state.bypassSession?.startedAt
+        bypassEndDate = state.bypassSession?.endsAt
+        bypassProgress = 0
+        remainingBypasses = state.remainingBypasses ?? 0
+    }
+
+    private func applySystemState(_ state: SessionState) throws {
+        try systemConfigurationController.apply(state.bypassSession == nil ? state.domains : [])
     }
 
     private func refreshStatus() {
@@ -385,6 +456,14 @@ final class BlockerController: ObservableObject {
     }
 }
 
+enum DurationValidator {
+    static func seconds(for minutes: Int) -> Int? {
+        guard minutes > 0 else { return nil }
+        let result = minutes.multipliedReportingOverflow(by: 60)
+        return result.overflow ? nil : result.partialValue
+    }
+}
+
 enum TimerProgress {
     static func minuteStep(startedAt: Date, endsAt: Date, now: Date = Date()) -> Double {
         let totalMinutes = max(1, Int(ceil(endsAt.timeIntervalSince(startedAt) / 60)))
@@ -394,6 +473,7 @@ enum TimerProgress {
 }
 
 private enum BlockerError: LocalizedError {
+    case invalidBlockDuration
     case invalidBypassDuration
     case invalidBypassAllowance
     case noProtectedWebsites
@@ -402,6 +482,8 @@ private enum BlockerError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .invalidBlockDuration:
+            "Enter a positive block duration."
         case .invalidBypassDuration:
             "Enter a positive bypass duration."
         case .invalidBypassAllowance:
