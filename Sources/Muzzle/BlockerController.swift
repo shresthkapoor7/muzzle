@@ -11,6 +11,11 @@ final class BlockerController: ObservableObject {
         let remainingBypasses: Int?
     }
 
+    private struct PendingSystemUpdate {
+        let state: SessionState
+        let outcome: SystemUpdateRetryOutcome
+    }
+
     @Published private(set) var blockedDomains: [String] = []
     @Published private(set) var timedSessionStartDate: Date?
     @Published private(set) var timedSessionEndDate: Date?
@@ -32,6 +37,7 @@ final class BlockerController: ObservableObject {
     private var progressTimer: Timer?
     private var bypassTimer: Timer?
     private var needsExpiredSessionCleanup = false
+    private var pendingSystemUpdate: PendingSystemUpdate?
 
     var isTimedSession: Bool { timedSessionEndDate != nil }
     var isBypassActive: Bool { bypassEndDate != nil }
@@ -39,6 +45,7 @@ final class BlockerController: ObservableObject {
     var canQuit: Bool { blockedDomains.isEmpty && !isBypassActive }
     var canStartBypass: Bool { !blockedDomains.isEmpty && !isBypassActive && remainingBypasses > 0 }
     var needsSystemReconciliation: Bool { !blockedDomains.isEmpty || needsExpiredSessionCleanup }
+    var canRetrySystemUpdate: Bool { pendingSystemUpdate != nil }
 
     func load() throws {
         blockedDomains = try domainStore.load()
@@ -127,9 +134,16 @@ final class BlockerController: ObservableObject {
             if previousState.domains.isEmpty {
                 remainingBypasses = allowedBypasses
             }
+            pendingSystemUpdate = PendingSystemUpdate(
+                state: currentSessionState,
+                outcome: previousState.domains.isEmpty
+                    ? .protectionStarted(isTimed: timedSessionEndDate != nil)
+                    : .none
+            )
             try persistAndApply(
                 revertingTo: previousState
             )
+            pendingSystemUpdate = nil
         } catch {
             present(error: error)
         }
@@ -152,6 +166,13 @@ final class BlockerController: ObservableObject {
 
     func endProtection() throws {
         let previousState = currentSessionState
+        let endedState = SessionState(
+            domains: [],
+            timedSession: nil,
+            bypassSession: nil,
+            remainingBypasses: nil
+        )
+        pendingSystemUpdate = PendingSystemUpdate(state: endedState, outcome: .none)
         isApplying = true
         defer { isApplying = false }
         try systemConfigurationController.apply([])
@@ -170,6 +191,7 @@ final class BlockerController: ObservableObject {
             try? applySystemState(previousState)
             throw error
         }
+        pendingSystemUpdate = nil
         expiryTimer?.invalidate()
         expiryTimer = nil
         progressTimer?.invalidate()
@@ -189,20 +211,28 @@ final class BlockerController: ObservableObject {
         }
 
         let previousState = currentSessionState
+        let startDate = Date()
+        let endDate = startDate.addingTimeInterval(TimeInterval(durationSeconds))
+        let bypassState = SessionState(
+            domains: previousState.domains,
+            timedSession: previousState.timedSession,
+            bypassSession: BypassSessionTiming(startedAt: startDate, endsAt: endDate),
+            remainingBypasses: max((previousState.remainingBypasses ?? 0) - 1, 0)
+        )
+        pendingSystemUpdate = PendingSystemUpdate(
+            state: bypassState,
+            outcome: .bypassStarted(minutes: minutes, isTimed: previousState.timedSession != nil)
+        )
         isApplying = true
         defer { isApplying = false }
         try systemConfigurationController.apply([])
         do {
-            let startDate = Date()
-            let endDate = startDate.addingTimeInterval(TimeInterval(durationSeconds))
-            bypassSessionStartDate = startDate
-            bypassEndDate = endDate
-            bypassProgress = 0
-            remainingBypasses -= 1
+            restoreInMemoryState(bypassState)
             try persistCurrentSessionState()
             scheduleProgressTimer()
             scheduleBypassTimer()
             refreshStatus()
+            pendingSystemUpdate = nil
         } catch let persistenceError {
             restoreInMemoryState(previousState)
             do {
@@ -214,6 +244,59 @@ final class BlockerController: ObservableObject {
                 )
             }
             throw persistenceError
+        }
+    }
+
+    @discardableResult
+    func retryPendingSystemUpdate() -> SystemUpdateRetryOutcome {
+        guard let pendingSystemUpdate else { return .none }
+
+        let previousState = currentSessionState
+        var targetState = pendingSystemUpdate.state
+        if case let .bypassStarted(minutes, _) = pendingSystemUpdate.outcome,
+           let durationSeconds = DurationValidator.seconds(for: minutes) {
+            let startDate = Date()
+            targetState = SessionState(
+                domains: targetState.domains,
+                timedSession: targetState.timedSession,
+                bypassSession: BypassSessionTiming(
+                    startedAt: startDate,
+                    endsAt: startDate.addingTimeInterval(TimeInterval(durationSeconds))
+                ),
+                remainingBypasses: targetState.remainingBypasses
+            )
+        }
+
+        isApplying = true
+        defer { isApplying = false }
+        var didApplyTargetState = false
+        do {
+            try applySystemState(targetState)
+            didApplyTargetState = true
+            try persistSessionState(targetState)
+            restoreInMemoryState(targetState)
+            scheduleExpiryTimer()
+            scheduleProgressTimer()
+            scheduleBypassTimer()
+            refreshStatus()
+            self.pendingSystemUpdate = nil
+            clearError()
+            return pendingSystemUpdate.outcome
+        } catch {
+            restoreInMemoryState(previousState)
+            if didApplyTargetState {
+                do {
+                    try applySystemState(previousState)
+                } catch let systemRestorationError {
+                    present(error: SystemUpdateRetryRollbackError(
+                        updateError: error,
+                        systemRestorationError: systemRestorationError
+                    ))
+                    return .none
+                }
+            }
+            present(error: error)
+            return .none
         }
     }
 
@@ -265,9 +348,13 @@ final class BlockerController: ObservableObject {
     }
 
     private func persistCurrentSessionState() throws {
+        try persistSessionState(currentSessionState)
+    }
+
+    private func persistSessionState(_ state: SessionState) throws {
         let previousState = try persistedSessionState()
         do {
-            try writePersistedSessionState(currentSessionState)
+            try writePersistedSessionState(state)
         } catch {
             try? writePersistedSessionState(previousState)
             throw error
@@ -436,17 +523,39 @@ final class BlockerController: ObservableObject {
                 return
             }
 
+            let previousState = currentSessionState
+            let restoredState = SessionState(
+                domains: blockedDomains,
+                timedSession: timedSessionEndDate.map {
+                    TimedSessionTiming(startedAt: timedSessionStartDate, endsAt: $0)
+                },
+                bypassSession: nil,
+                remainingBypasses: remainingBypasses
+            )
+            pendingSystemUpdate = PendingSystemUpdate(state: restoredState, outcome: .none)
             isApplying = true
             defer { isApplying = false }
-            try systemConfigurationController.apply(blockedDomains)
-            try bypassSessionStore.clear()
-            bypassSessionStartDate = nil
-            bypassEndDate = nil
-            bypassProgress = 0
+            try applySystemState(restoredState)
+            do {
+                try persistSessionState(restoredState)
+                restoreInMemoryState(restoredState)
+            } catch let persistenceError {
+                restoreInMemoryState(previousState)
+                do {
+                    try applySystemState(previousState)
+                } catch let systemRestorationError {
+                    throw BypassPersistenceRollbackError(
+                        persistenceError: persistenceError,
+                        systemRestorationError: systemRestorationError
+                    )
+                }
+                throw persistenceError
+            }
             bypassTimer?.invalidate()
             bypassTimer = nil
             scheduleProgressTimer()
             refreshStatus()
+            pendingSystemUpdate = nil
         } catch {
             present(error: error)
         }
@@ -468,6 +577,12 @@ enum DurationValidator {
     }
 }
 
+enum SystemUpdateRetryOutcome {
+    case none
+    case protectionStarted(isTimed: Bool)
+    case bypassStarted(minutes: Int, isTimed: Bool)
+}
+
 enum TimerProgress {
     static func minuteStep(startedAt: Date, endsAt: Date, now: Date = Date()) -> Double {
         let totalMinutes = max(1, Int(ceil(endsAt.timeIntervalSince(startedAt) / 60)))
@@ -483,6 +598,17 @@ private struct BypassPersistenceRollbackError: LocalizedError {
     var errorDescription: String? {
         "Muzzle could not save the bypass session, and it could not restore the website block. "
             + "Save error: \(persistenceError.localizedDescription). "
+            + "Restore error: \(systemRestorationError.localizedDescription)."
+    }
+}
+
+private struct SystemUpdateRetryRollbackError: LocalizedError {
+    let updateError: Error
+    let systemRestorationError: Error
+
+    var errorDescription: String? {
+        "Muzzle could not complete the retried update, and it could not restore the previous website rules. "
+            + "Update error: \(updateError.localizedDescription). "
             + "Restore error: \(systemRestorationError.localizedDescription)."
     }
 }

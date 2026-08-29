@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onManage: { [weak self] in self?.showManagementWindow() },
             onEndSession: { [weak self] in self?.requestEndSession() },
             onBypass: { [weak self] in self?.requestBypass() },
+            onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() },
             onQuit: { [weak self] in self?.quitWhenInactive() }
         )
 
@@ -63,7 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if managementWindowController == nil {
             managementWindowController = ManagementWindowController(
                 blocker: blocker,
-                onProtectionStarted: { [weak self] in self?.startProtectionSession() }
+                onProtectionStarted: { [weak self] in self?.startProtectionSession() },
+                onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() }
             )
         }
         managementWindowController?.showWindow(nil)
@@ -84,6 +86,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         unlockKey = UnlockKey.make()
         DispatchQueue.main.async { [weak self] in
             self?.requestWorkContextForPokeDelivery()
+        }
+    }
+
+    private func retrySystemUpdate() {
+        switch blocker.retryPendingSystemUpdate() {
+        case .none:
+            return
+        case let .protectionStarted(isTimed):
+            if !isTimed {
+                startProtectionSession()
+            }
+        case let .bypassStarted(minutes, isTimed):
+            if !isTimed {
+                sendBypassToPoke(minutes: minutes)
+            }
         }
     }
 
@@ -128,17 +145,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 try blocker.startBypass(for: minutes)
                 if !blocker.isTimedSession {
-                    pokeClient.sendBypass(minutes: minutes) { [weak self] result in
-                        DispatchQueue.main.async {
-                            guard let self, case let .failure(error) = result else { return }
-                            self.blocker.present(error: error)
-                        }
-                    }
+                    sendBypassToPoke(minutes: minutes)
                 }
                 return
             } catch {
                 blocker.present(error: error)
                 return
+            }
+        }
+    }
+
+    private func sendBypassToPoke(minutes: Int) {
+        pokeClient.sendBypass(minutes: minutes) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, case let .failure(error) = result else { return }
+                self.blocker.present(error: error)
             }
         }
     }
