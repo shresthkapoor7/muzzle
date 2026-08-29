@@ -40,6 +40,10 @@ Changing protection updates both system components in one administrator-authoriz
 
 The PF layer blocks the domain’s addresses resolved through this Mac’s configured DNS. This is a best-effort local firewall because large sites can rotate addresses or resolve differently through browser Secure DNS; reopen the blocker to refresh rules after a network change. Some CDNs share IP addresses between unrelated sites, so an IP-level block can occasionally affect another site on the same address. A Network Extension would provide hostname-precise filtering, but requires Apple’s Network Extension entitlement, code signing, and an installed system extension.
 
+### Existing browser connections
+
+Muzzle clears matching PF connection states when a block starts, but a browser can keep an already-open HTTP/2 or HTTP/3/QUIC connection if it was established to an address that the browser resolved through Secure DNS and the Mac’s resolver did not return. In that case, the website can remain usable in an existing browser session even though a fresh session is blocked. For X, block both `x.com` and `api.x.com`: `api.x.com` covers the feed API and makes the block more complete. Closing the existing browser session also forces it to reconnect through the current rules.
+
 ## Safety and recovery
 
 - Muzzle sends the session key to Poke when protection starts; it never displays or copies the key locally.
