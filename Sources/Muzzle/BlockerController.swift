@@ -188,28 +188,32 @@ final class BlockerController: ObservableObject {
             throw BlockerError.invalidBypassDuration
         }
 
+        let previousState = currentSessionState
         isApplying = true
         defer { isApplying = false }
         try systemConfigurationController.apply([])
         do {
             let startDate = Date()
             let endDate = startDate.addingTimeInterval(TimeInterval(durationSeconds))
-            try bypassSessionStore.save(startedAt: startDate, endsAt: endDate)
-            try bypassAllowanceStore.save(remaining: remainingBypasses - 1)
             bypassSessionStartDate = startDate
             bypassEndDate = endDate
             bypassProgress = 0
             remainingBypasses -= 1
+            try persistCurrentSessionState()
             scheduleProgressTimer()
             scheduleBypassTimer()
             refreshStatus()
-        } catch {
-            try? bypassSessionStore.clear()
-            bypassSessionStartDate = nil
-            bypassEndDate = nil
-            bypassProgress = 0
-            try? systemConfigurationController.apply(blockedDomains)
-            throw error
+        } catch let persistenceError {
+            restoreInMemoryState(previousState)
+            do {
+                try applySystemState(previousState)
+            } catch let systemRestorationError {
+                throw BypassPersistenceRollbackError(
+                    persistenceError: persistenceError,
+                    systemRestorationError: systemRestorationError
+                )
+            }
+            throw persistenceError
         }
     }
 
@@ -469,6 +473,17 @@ enum TimerProgress {
         let totalMinutes = max(1, Int(ceil(endsAt.timeIntervalSince(startedAt) / 60)))
         let completedMinutes = max(0, Int(floor(now.timeIntervalSince(startedAt) / 60)))
         return min(Double(completedMinutes) / Double(totalMinutes), 1)
+    }
+}
+
+private struct BypassPersistenceRollbackError: LocalizedError {
+    let persistenceError: Error
+    let systemRestorationError: Error
+
+    var errorDescription: String? {
+        "Muzzle could not save the bypass session, and it could not restore the website block. "
+            + "Save error: \(persistenceError.localizedDescription). "
+            + "Restore error: \(systemRestorationError.localizedDescription)."
     }
 }
 
