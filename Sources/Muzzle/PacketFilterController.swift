@@ -21,23 +21,43 @@ struct PacketFilterController {
         }
     }
 
-    func makeStagingAnchor(for domains: [String]) throws -> URL {
+    func makeStagingAnchor(for domains: [String]) throws -> (
+        url: URL,
+        ipv4Addresses: [String],
+        ipv6Addresses: [String]
+    ) {
         let addresses = resolveAddresses(for: domains)
         guard !addresses.ipv4.isEmpty || !addresses.ipv6.isEmpty else {
             throw PacketFilterError.noResolvedAddresses
         }
         let anchorRules = rules(ipv4Addresses: addresses.ipv4, ipv6Addresses: addresses.ipv6)
-        return try makeStagingAnchor(rules: anchorRules)
+        return (
+            url: try makeStagingAnchor(rules: anchorRules),
+            ipv4Addresses: addresses.ipv4,
+            ipv6Addresses: addresses.ipv6
+        )
     }
 
-    func installCommand(anchor: URL) -> String {
+    func installCommand(anchor: URL, ipv4Addresses: [String], ipv6Addresses: [String]) -> String {
         """
         \(removeLegacyCommand()) && \\
         /usr/bin/install -d -m 755 /etc/pf.anchors && \\
         /usr/bin/install -m 600 \(shellQuote(anchor.path)) \(shellQuote(anchorURL.path)) && \\
         /sbin/pfctl -a \(anchorName) -f \(shellQuote(anchorURL.path)) && \\
-        (/sbin/pfctl -e >/dev/null 2>&1 || true)
+        (/sbin/pfctl -e >/dev/null 2>&1 || true) && \\
+        \(terminateExistingStatesCommand(ipv4Addresses: ipv4Addresses, ipv6Addresses: ipv6Addresses))
         """
+    }
+
+    func terminateExistingStatesCommand(ipv4Addresses: [String], ipv6Addresses: [String]) -> String {
+        let ipv4Commands = ipv4Addresses.sorted().map { address in
+            "(/sbin/pfctl -k 0.0.0.0/0 -k \(shellQuote(address)) >/dev/null 2>&1 || true)"
+        }
+        let ipv6Commands = ipv6Addresses.sorted().map { address in
+            "(/sbin/pfctl -k ::/0 -k \(shellQuote(address)) >/dev/null 2>&1 || true)"
+        }
+        let commands = ipv4Commands + ipv6Commands
+        return commands.isEmpty ? ":" : commands.joined(separator: " && ")
     }
 
     func removeCommand() -> String {
@@ -66,19 +86,20 @@ struct PacketFilterController {
     private func resolveAddresses(for domains: [String]) -> (ipv4: [String], ipv6: [String]) {
         var ipv4 = Set<String>()
         var ipv6 = Set<String>()
-
-        for domain in domains {
-            ipv4.formUnion(dnsAnswers(recordType: "A", domain: domain).filter(isIPv4Address))
-            ipv6.formUnion(dnsAnswers(recordType: "AAAA", domain: domain).filter(isIPv6Address))
-        }
+        let hostnames = domains
+            .flatMap { [$0, "www.\($0)"] }
+            .sorted()
+        ipv4.formUnion(dnsAnswers(recordType: "A", domains: hostnames).filter(isIPv4Address))
+        ipv6.formUnion(dnsAnswers(recordType: "AAAA", domains: hostnames).filter(isIPv6Address))
         return (Array(ipv4), Array(ipv6))
     }
 
-    private func dnsAnswers(recordType: String, domain: String) -> [String] {
+    private func dnsAnswers(recordType: String, domains: [String]) -> [String] {
         let process = Process()
         let output = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/dig")
-        process.arguments = ["+short", recordType, domain]
+        let arguments = ["+short", "+time=1", "+tries=1", recordType] + domains
+        process.arguments = arguments
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
 

@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let pokeClient = PokeClient()
     private var statusItemController: StatusItemController?
     private var managementWindowController: ManagementWindowController?
+    private var workContextAlert: NSAlert?
     private var unlockKey: String = ""
     private var isSecondaryInstance = false
     private var isQuitAuthorized = false
@@ -31,8 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             try blocker.load()
-            if !blocker.blockedDomains.isEmpty {
-                try blocker.reconcileHostsFile()
+            if blocker.needsSystemReconciliation {
+                try blocker.reconcileSystemState()
             }
         } catch {
             blocker.present(error: error)
@@ -43,12 +44,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             blocker: blocker,
             onManage: { [weak self] in self?.showManagementWindow() },
             onEndSession: { [weak self] in self?.requestEndSession() },
+            onBypass: { [weak self] in self?.requestBypass() },
             onQuit: { [weak self] in self?.quitWhenInactive() }
         )
 
-        if !blocker.blockedDomains.isEmpty {
+        if !blocker.blockedDomains.isEmpty, !blocker.isTimedSession, !blocker.isBypassActive {
             DispatchQueue.main.async { [weak self] in
-                self?.requestWorkContextForRestoredSession()
+                self?.requestWorkContextForPokeDelivery()
             }
         }
     }
@@ -61,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if managementWindowController == nil {
             managementWindowController = ManagementWindowController(
                 blocker: blocker,
-                onProtectionStarted: { [weak self] workingOn in self?.startProtectionSession(workingOn: workingOn) }
+                onProtectionStarted: { [weak self] in self?.startProtectionSession() }
             )
         }
         managementWindowController?.showWindow(nil)
@@ -78,12 +80,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func startProtectionSession(workingOn: String?) {
+    private func startProtectionSession() {
         unlockKey = UnlockKey.make()
-        deliverUnlockKeyToPoke(workingOn: workingOn)
+        DispatchQueue.main.async { [weak self] in
+            self?.requestWorkContextForPokeDelivery()
+        }
     }
 
-    private func requestWorkContextForRestoredSession() {
+    private func requestBypass() {
+        let alert = NSAlert()
+        alert.icon = MuzzleIcon.alertImage()
+        alert.messageText = "Start a bypass?"
+        alert.informativeText = "Access is restored temporarily. Muzzle will block the website again when the time expires."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Start bypass")
+        alert.addButton(withTitle: "Cancel")
+
+        let durationForm = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 58))
+        let durationLabel = NSTextField(labelWithString: "Bypass length")
+        durationLabel.frame = NSRect(x: 0, y: 38, width: 300, height: 18)
+        durationLabel.font = .systemFont(ofSize: 12, weight: .medium)
+
+        let durationField = NSTextField(frame: NSRect(x: 0, y: 2, width: 80, height: 28))
+        durationField.stringValue = "5"
+        durationField.alignment = .right
+        durationField.placeholderString = "Minutes"
+        durationField.setAccessibilityLabel("Bypass duration in minutes")
+
+        let unitLabel = NSTextField(labelWithString: "minutes")
+        unitLabel.frame = NSRect(x: 90, y: 7, width: 90, height: 18)
+        unitLabel.font = .systemFont(ofSize: 13)
+        unitLabel.textColor = .secondaryLabelColor
+
+        durationForm.addSubview(durationLabel)
+        durationForm.addSubview(durationField)
+        durationForm.addSubview(unitLabel)
+        alert.accessoryView = durationForm
+        alert.window.initialFirstResponder = durationField
+
+        while alert.runModal() == .alertFirstButtonReturn {
+            let input = durationField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let minutes = Int(input), minutes > 0 else {
+                alert.informativeText = "Enter a positive whole number of minutes. Muzzle will restore the current website block when this time ends."
+                continue
+            }
+
+            do {
+                try blocker.startBypass(for: minutes)
+                if !blocker.isTimedSession {
+                    pokeClient.sendBypass(minutes: minutes) { [weak self] result in
+                        DispatchQueue.main.async {
+                            guard let self, case let .failure(error) = result else { return }
+                            self.blocker.present(error: error)
+                        }
+                    }
+                }
+                return
+            } catch {
+                blocker.present(error: error)
+                return
+            }
+        }
+    }
+
+    private func requestWorkContextForPokeDelivery() {
+        guard workContextAlert == nil else { return }
+
         showManagementWindow()
         guard let window = managementWindowController?.window else {
             deliverUnlockKeyToPoke()
@@ -91,6 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let alert = NSAlert()
+        alert.icon = MuzzleIcon.alertImage()
         alert.messageText = "What are you working on?"
         alert.informativeText = "Optional — Muzzle will include this with the new lock key sent to Poke."
         alert.alertStyle = .informational
@@ -102,21 +165,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         alert.window.makeFirstResponder(field)
+        workContextAlert = alert
 
         alert.beginSheetModal(for: window) { [weak self] _ in
             let workingOn = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            self?.workContextAlert = nil
             self?.deliverUnlockKeyToPoke(workingOn: workingOn.isEmpty ? nil : workingOn)
         }
     }
 
     private func quitWhenInactive() {
-        guard blocker.blockedDomains.isEmpty else { return }
+        guard blocker.canQuit else { return }
         isQuitAuthorized = true
         NSApp.terminate(nil)
     }
 
     private func requestEndSession() {
         let alert = NSAlert()
+        alert.icon = MuzzleIcon.alertImage()
         alert.messageText = "End website blocking?"
         alert.informativeText = "Enter this session’s unlock key to remove Muzzle’s entries from your hosts file. Muzzle will remain available in the menu bar."
         alert.alertStyle = .warning
@@ -135,6 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         guard field.stringValue == unlockKey else {
             let invalidAlert = NSAlert()
+            invalidAlert.icon = MuzzleIcon.alertImage()
             invalidAlert.messageText = "That key does not match"
             invalidAlert.informativeText = "Muzzle will keep running."
             invalidAlert.alertStyle = .critical

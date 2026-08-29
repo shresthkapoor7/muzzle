@@ -38,4 +38,34 @@ final class DomainValidatorTests: XCTestCase {
         XCTAssertTrue(rules.contains("muzzle_ipv4"))
         XCTAssertFalse(rules.contains("muzzle_ipv6"))
     }
+
+    func testPacketFilterStateTerminationTargetsOnlyBlockedDestinations() {
+        let command = PacketFilterController().terminateExistingStatesCommand(
+            ipv4Addresses: ["104.21.31.40"],
+            ipv6Addresses: ["2606:4700:3033::6815:1f28"]
+        )
+
+        XCTAssertTrue(command.contains("pfctl -k 0.0.0.0/0 -k '104.21.31.40'"))
+        XCTAssertTrue(command.contains("pfctl -k ::/0 -k '2606:4700:3033::6815:1f28'"))
+        XCTAssertTrue(command.contains("|| true"))
+        XCTAssertFalse(command.contains("-F states"))
+        XCTAssertFalse(command.contains("\\n+"))
+    }
+
+    func testTimerProgressAdvancesInWholeMinuteSteps() {
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        let end = start.addingTimeInterval(5 * 60)
+
+        XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: start), 0)
+        XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: start.addingTimeInterval(59)), 0)
+        XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: start.addingTimeInterval(60)), 0.2)
+        XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: start.addingTimeInterval(4 * 60)), 0.8)
+        XCTAssertEqual(TimerProgress.minuteStep(startedAt: start, endsAt: end, now: end), 1)
+    }
+
+    func testDurationValidatorRejectsOverflowingMinutes() {
+        XCTAssertEqual(DurationValidator.seconds(for: 5), 300)
+        XCTAssertNil(DurationValidator.seconds(for: 0))
+        XCTAssertNil(DurationValidator.seconds(for: Int.max))
+    }
 }
