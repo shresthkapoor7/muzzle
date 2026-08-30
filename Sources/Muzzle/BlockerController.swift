@@ -252,6 +252,7 @@ final class BlockerController: ObservableObject {
         guard let pendingSystemUpdate else { return .none }
 
         let previousState = currentSessionState
+        let outcome = pendingSystemUpdate.outcome
         var targetState = pendingSystemUpdate.state
         if case let .bypassStarted(minutes, _) = pendingSystemUpdate.outcome,
            let durationSeconds = DurationValidator.seconds(for: minutes) {
@@ -264,6 +265,14 @@ final class BlockerController: ObservableObject {
                     endsAt: startDate.addingTimeInterval(TimeInterval(durationSeconds))
                 ),
                 remainingBypasses: targetState.remainingBypasses
+            )
+        }
+        if let timedSession = targetState.timedSession, timedSession.endsAt <= Date() {
+            targetState = SessionState(
+                domains: [],
+                timedSession: nil,
+                bypassSession: nil,
+                remainingBypasses: nil
             )
         }
 
@@ -281,7 +290,7 @@ final class BlockerController: ObservableObject {
             refreshStatus()
             self.pendingSystemUpdate = nil
             clearError()
-            return pendingSystemUpdate.outcome
+            return targetState.domains.isEmpty ? .none : outcome
         } catch {
             restoreInMemoryState(previousState)
             if didApplyTargetState {

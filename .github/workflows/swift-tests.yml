@@ -7,10 +7,14 @@ on:
 jobs:
   test:
     runs-on: macos-14
+    permissions:
+      contents: read
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Run Swift tests
         run: swift test
