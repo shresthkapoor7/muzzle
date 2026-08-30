@@ -7,6 +7,7 @@ final class StatusItemController: NSObject {
     private let onManage: () -> Void
     private let onEndSession: () -> Void
     private let onBypass: () -> Void
+    private let onRetrySystemUpdate: () -> Void
     private let onQuit: () -> Void
     private let statusItem: NSStatusItem
     private var blockerObservation: AnyCancellable?
@@ -16,12 +17,14 @@ final class StatusItemController: NSObject {
         onManage: @escaping () -> Void,
         onEndSession: @escaping () -> Void,
         onBypass: @escaping () -> Void,
+        onRetrySystemUpdate: @escaping () -> Void,
         onQuit: @escaping () -> Void
     ) {
         self.blocker = blocker
         self.onManage = onManage
         self.onEndSession = onEndSession
         self.onBypass = onBypass
+        self.onRetrySystemUpdate = onRetrySystemUpdate
         self.onQuit = onQuit
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
@@ -72,6 +75,10 @@ final class StatusItemController: NSObject {
 
         let manageTitle = blocker.blockedDomains.isEmpty ? "Start blocking…" : "Manage protected websites…"
         menu.addItem(makeItem(manageTitle, action: #selector(manage)))
+        if blocker.canRetrySystemUpdate {
+            menu.addItem(.separator())
+            menu.addItem(makeItem("Retry macOS permission…", action: #selector(retrySystemUpdate)))
+        }
         if blocker.canQuit {
             menu.addItem(.separator())
             menu.addItem(makeItem("Quit Muzzle", action: #selector(quit)))
@@ -98,5 +105,6 @@ final class StatusItemController: NSObject {
     @objc private func manage() { onManage() }
     @objc private func endSession() { onEndSession() }
     @objc private func bypass() { onBypass() }
+    @objc private func retrySystemUpdate() { onRetrySystemUpdate() }
     @objc private func quit() { onQuit() }
 }

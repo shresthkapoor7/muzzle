@@ -3,8 +3,16 @@ import SwiftUI
 
 @MainActor
 final class ManagementWindowController: NSWindowController {
-    init(blocker: BlockerController, onProtectionStarted: @escaping () -> Void) {
-        let rootView = ManagementView(blocker: blocker, onProtectionStarted: onProtectionStarted)
+    init(
+        blocker: BlockerController,
+        onProtectionStarted: @escaping () -> Void,
+        onRetrySystemUpdate: @escaping () -> Void
+    ) {
+        let rootView = ManagementView(
+            blocker: blocker,
+            onProtectionStarted: onProtectionStarted,
+            onRetrySystemUpdate: onRetrySystemUpdate
+        )
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Muzzle"
@@ -24,6 +32,7 @@ final class ManagementWindowController: NSWindowController {
 private struct ManagementView: View {
     @ObservedObject var blocker: BlockerController
     let onProtectionStarted: () -> Void
+    let onRetrySystemUpdate: () -> Void
     @State private var domainInput = ""
     @State private var blockMode = BlockMode.timed
     @State private var timedMinutesInput = "30"
@@ -46,6 +55,9 @@ private struct ManagementView: View {
                 set: { if !$0 { blocker.clearError() } }
             )
         ) {
+            if blocker.canRetrySystemUpdate {
+                Button("Try Again") { onRetrySystemUpdate() }
+            }
             Button("OK", role: .cancel) { blocker.clearError() }
         } message: {
             Text(blocker.lastErrorMessage ?? "Unknown error")
