@@ -3,10 +3,13 @@ import Foundation
 struct HostsFileController {
     private let fileManager = FileManager.default
     private let hostsURL = URL(fileURLWithPath: "/etc/hosts")
-    private let openingMarker = "# MUZZLE_BEGIN — managed by Muzzle"
-    private let closingMarker = "# MUZZLE_END"
+    private let profile: BlockingProfile
     private let legacyOpeningMarker = "# WEBSITE_BLOCKER_BEGIN — managed by Website Blocker"
     private let legacyClosingMarker = "# WEBSITE_BLOCKER_END"
+
+    init(profile: BlockingProfile = .normal) {
+        self.profile = profile
+    }
 
     enum HostsError: LocalizedError {
         case noHostsFile
@@ -44,10 +47,10 @@ struct HostsFileController {
             let entries = domains.flatMap { domain in
                 ["127.0.0.1 \(domain)", "127.0.0.1 www.\(domain)", "::1 \(domain)", "::1 www.\(domain)"]
             }
-            output += "\n\n\(openingMarker)\n"
-            output += "# These entries are intentionally managed by Muzzle.\n"
+            output += "\n\n\(profile.hostsOpeningMarker)\n"
+            output += "# These entries are intentionally managed by Muzzle\(profile == .debug ? " Debug" : "").\n"
             output += entries.joined(separator: "\n")
-            output += "\n\(closingMarker)"
+            output += "\n\(profile.hostsClosingMarker)"
         }
         output += "\n"
 
@@ -61,7 +64,11 @@ struct HostsFileController {
 
     private func removeManagedBlock(from contents: String) -> String {
         var result = contents
-        for markers in [(openingMarker, closingMarker), (legacyOpeningMarker, legacyClosingMarker)] {
+        var markerPairs = [(profile.hostsOpeningMarker, profile.hostsClosingMarker)]
+        if profile == .normal {
+            markerPairs.append((legacyOpeningMarker, legacyClosingMarker))
+        }
+        for markers in markerPairs {
             while let start = result.range(of: markers.0),
                   let end = result.range(of: markers.1, range: start.upperBound..<result.endIndex) {
                 result.removeSubrange(start.lowerBound..<end.upperBound)
@@ -76,7 +83,7 @@ struct HostsFileController {
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
-        ).appendingPathComponent("Muzzle", isDirectory: true)
+        ).appendingPathComponent(profile.applicationSupportDirectoryName, isDirectory: true)
         try fileManager.createDirectory(at: base, withIntermediateDirectories: true)
 
         let stagingURL = base.appendingPathComponent("hosts.staging")

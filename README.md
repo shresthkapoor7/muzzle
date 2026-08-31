@@ -18,7 +18,7 @@ For local testing, use debug mode:
 open -n "dist/Muzzle.app" --args --debug
 ```
 
-Debug mode is an isolated in-memory UI sandbox. It never reads or changes the normal app’s saved sessions or system-level website rules, never sends a lock key or bypass event to Poke, and lets you end protection immediately without a key — including timed sessions. `-n` runs the debug instance beside the normal menu-bar app. It is intended only for local development; launch without `--debug` for the normal protected flow.
+Debug mode applies real website blocks using its own saved session data, hosts-file markers, and PF anchor. It never reads or changes the normal app’s session or rules, never sends a lock key or bypass event to Poke, and lets you end protection immediately without a key — including timed sessions. `-n` runs the debug instance beside the normal menu-bar app. It is intended only for local development; launch without `--debug` for the normal protected flow.
 
 Before starting protection, put your Poke bearer token in the project’s local `.env` file:
 

@@ -28,12 +28,11 @@ final class BlockerController: ObservableObject {
     @Published private(set) var statusMessage = "No websites are blocked yet."
     @Published private(set) var lastErrorMessage: String?
 
-    private let isDebugMode: Bool
-    private let domainStore = DomainStore()
-    private let timedSessionStore = TimedSessionStore()
-    private let bypassSessionStore = BypassSessionStore()
-    private let bypassAllowanceStore = BypassAllowanceStore()
-    private let systemConfigurationController = SystemConfigurationController()
+    private let domainStore: DomainStore
+    private let timedSessionStore: TimedSessionStore
+    private let bypassSessionStore: BypassSessionStore
+    private let bypassAllowanceStore: BypassAllowanceStore
+    private let systemConfigurationController: SystemConfigurationController
     private var expiryTimer: Timer?
     private var progressTimer: Timer?
     private var bypassTimer: Timer?
@@ -45,20 +44,22 @@ final class BlockerController: ObservableObject {
     var isProtectionEnforced: Bool { !blockedDomains.isEmpty && !isBypassActive }
     var canQuit: Bool { blockedDomains.isEmpty && !isBypassActive }
     var canStartBypass: Bool { !blockedDomains.isEmpty && !isBypassActive && remainingBypasses > 0 }
-    var needsSystemReconciliation: Bool { !isDebugMode && (!blockedDomains.isEmpty || needsExpiredSessionCleanup) }
+    var needsSystemReconciliation: Bool { !blockedDomains.isEmpty || needsExpiredSessionCleanup }
     var canRetrySystemUpdate: Bool { pendingSystemUpdate != nil }
 
     init(isDebugMode: Bool = false) {
-        self.isDebugMode = isDebugMode
+        let profile: BlockingProfile = isDebugMode ? .debug : .normal
+        domainStore = DomainStore(
+            applicationSupportDirectoryName: profile.applicationSupportDirectoryName,
+            migratesLegacyStore: !isDebugMode
+        )
+        timedSessionStore = TimedSessionStore(applicationSupportDirectoryName: profile.applicationSupportDirectoryName)
+        bypassSessionStore = BypassSessionStore(applicationSupportDirectoryName: profile.applicationSupportDirectoryName)
+        bypassAllowanceStore = BypassAllowanceStore(applicationSupportDirectoryName: profile.applicationSupportDirectoryName)
+        systemConfigurationController = SystemConfigurationController(profile: profile)
     }
 
     func load() throws {
-        guard !isDebugMode else {
-            restoreInMemoryState(SessionState(domains: [], timedSession: nil, bypassSession: nil, remainingBypasses: nil))
-            refreshStatus()
-            return
-        }
-
         blockedDomains = try domainStore.load()
         let timedSession = try timedSessionStore.load()
         timedSessionStartDate = timedSession?.startedAt
@@ -161,11 +162,6 @@ final class BlockerController: ObservableObject {
     }
 
     func reconcileSystemState() throws {
-        guard !isDebugMode else {
-            refreshStatus()
-            return
-        }
-
         isApplying = true
         defer { isApplying = false }
 
@@ -387,8 +383,6 @@ final class BlockerController: ObservableObject {
     }
 
     private func persistedSessionState() throws -> SessionState {
-        guard !isDebugMode else { return currentSessionState }
-
         let domains = try domainStore.load()
         let timedSession = try timedSessionStore.load()
         let bypassSession = try bypassSessionStore.load()
@@ -402,8 +396,6 @@ final class BlockerController: ObservableObject {
     }
 
     private func writePersistedSessionState(_ state: SessionState) throws {
-        guard !isDebugMode else { return }
-
         try domainStore.save(state.domains)
         if let timedSession = state.timedSession {
             try timedSessionStore.save(startedAt: timedSession.startedAt, endsAt: timedSession.endsAt)
@@ -434,7 +426,6 @@ final class BlockerController: ObservableObject {
     }
 
     private func applySystemState(_ state: SessionState) throws {
-        guard !isDebugMode else { return }
         try systemConfigurationController.apply(state.bypassSession == nil ? state.domains : [])
     }
 

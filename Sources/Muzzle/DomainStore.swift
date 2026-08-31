@@ -2,6 +2,13 @@ import Foundation
 
 struct DomainStore {
     private let fileManager = FileManager.default
+    private let applicationSupportDirectoryName: String
+    private let migratesLegacyStore: Bool
+
+    init(applicationSupportDirectoryName: String = "Muzzle", migratesLegacyStore: Bool = true) {
+        self.applicationSupportDirectoryName = applicationSupportDirectoryName
+        self.migratesLegacyStore = migratesLegacyStore
+    }
 
     private var applicationSupportBaseDirectory: URL {
         get throws {
@@ -17,7 +24,7 @@ struct DomainStore {
     private var applicationSupportDirectory: URL {
         get throws {
             let directory = try applicationSupportBaseDirectory
-                .appendingPathComponent("Muzzle", isDirectory: true)
+                .appendingPathComponent(applicationSupportDirectoryName, isDirectory: true)
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             return directory
         }
@@ -34,6 +41,7 @@ struct DomainStore {
             return try JSONDecoder().decode([String].self, from: data).sorted()
         }
 
+        guard migratesLegacyStore else { return [] }
         let legacyURL = try applicationSupportBaseDirectory
             .appendingPathComponent("WebsiteBlocker", isDirectory: true)
             .appendingPathComponent("blocked-domains.json")

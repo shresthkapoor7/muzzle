@@ -3,8 +3,13 @@ import Foundation
 /// Applies the packet-filter and hosts-file changes through one macOS authorization request.
 struct SystemConfigurationController {
     private let fileManager = FileManager.default
-    private let hostsFileController = HostsFileController()
-    private let packetFilterController = PacketFilterController()
+    private let hostsFileController: HostsFileController
+    private let packetFilterController: PacketFilterController
+
+    init(profile: BlockingProfile = .normal) {
+        hostsFileController = HostsFileController(profile: profile)
+        packetFilterController = PacketFilterController(profile: profile)
+    }
 
     enum SystemConfigurationError: LocalizedError {
         case privilegeCommandFailed(String)
