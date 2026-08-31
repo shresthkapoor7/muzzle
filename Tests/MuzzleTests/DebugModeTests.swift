@@ -34,6 +34,10 @@ final class DebugModeTests: XCTestCase {
         XCTAssertTrue(install.contains("/etc/pf.anchors/muzzle-debug"))
         XCTAssertTrue(install.contains("-a com.apple/muzzle-debug"))
         XCTAssertFalse(install.contains("com.apple/websiteblocker"))
-        XCTAssertFalse(controller.removeCommand().contains("com.apple/websiteblocker"))
+
+        let remove = controller.removeCommand()
+        XCTAssertTrue(remove.contains("-a \(BlockingProfile.debug.packetFilterAnchorName)"))
+        XCTAssertTrue(remove.contains("/etc/pf.anchors/\(BlockingProfile.debug.packetFilterAnchorFileName)"))
+        XCTAssertFalse(remove.contains("com.apple/websiteblocker"))
     }
 }
