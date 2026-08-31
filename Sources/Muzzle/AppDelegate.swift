@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var unlockKey: String = ""
     private var isSecondaryInstance = false
     private var isQuitAuthorized = false
+    private let isDebugMode = DebugMode.isEnabled
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         let ownPID = ProcessInfo.processInfo.processIdentifier
@@ -32,16 +33,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             try blocker.load()
-            if blocker.needsSystemReconciliation {
+            if isDebugMode && (!blocker.blockedDomains.isEmpty || blocker.isBypassActive) {
+                try blocker.endProtection()
+            } else if blocker.needsSystemReconciliation {
                 try blocker.reconcileSystemState()
             }
         } catch {
             blocker.present(error: error)
         }
 
-        unlockKey = UnlockKey.make()
+        if !isDebugMode {
+            unlockKey = UnlockKey.make()
+        }
         statusItemController = StatusItemController(
             blocker: blocker,
+            isDebugMode: isDebugMode,
             onManage: { [weak self] in self?.showManagementWindow() },
             onEndSession: { [weak self] in self?.requestEndSession() },
             onBypass: { [weak self] in self?.requestBypass() },
@@ -49,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onQuit: { [weak self] in self?.quitWhenInactive() }
         )
 
-        if !blocker.blockedDomains.isEmpty, !blocker.isTimedSession, !blocker.isBypassActive {
+        if !isDebugMode, !blocker.blockedDomains.isEmpty, !blocker.isTimedSession, !blocker.isBypassActive {
             DispatchQueue.main.async { [weak self] in
                 self?.requestWorkContextForPokeDelivery()
             }
@@ -64,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if managementWindowController == nil {
             managementWindowController = ManagementWindowController(
                 blocker: blocker,
+                isDebugMode: isDebugMode,
                 onProtectionStarted: { [weak self] in self?.startProtectionSession() },
                 onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() }
             )
@@ -74,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func deliverUnlockKeyToPoke(workingOn: String? = nil) {
+        guard !isDebugMode else { return }
         pokeClient.sendLockKey(unlockKey, workingOn: workingOn) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self, case let .failure(error) = result else { return }
@@ -83,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startProtectionSession() {
+        guard !isDebugMode else { return }
         unlockKey = UnlockKey.make()
         DispatchQueue.main.async { [weak self] in
             self?.requestWorkContextForPokeDelivery()
@@ -94,11 +103,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .none:
             return
         case let .protectionStarted(isTimed):
-            if !isTimed {
+            if !isDebugMode, !isTimed {
                 startProtectionSession()
             }
         case let .bypassStarted(minutes, isTimed):
-            if !isTimed {
+            if !isDebugMode, !isTimed {
                 sendBypassToPoke(minutes: minutes)
             }
         }
@@ -144,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             do {
                 try blocker.startBypass(for: minutes)
-                if !blocker.isTimedSession {
+                if !isDebugMode, !blocker.isTimedSession {
                     sendBypassToPoke(minutes: minutes)
                 }
                 return
@@ -156,6 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func sendBypassToPoke(minutes: Int) {
+        guard !isDebugMode else { return }
         pokeClient.sendBypass(minutes: minutes) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self, case let .failure(error) = result else { return }
@@ -202,6 +212,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func requestEndSession() {
+        if isDebugMode {
+            do {
+                try blocker.endProtection()
+            } catch {
+                blocker.present(error: error)
+            }
+            return
+        }
+
         let alert = NSAlert()
         alert.icon = MuzzleIcon.alertImage()
         alert.messageText = "End website blocking?"

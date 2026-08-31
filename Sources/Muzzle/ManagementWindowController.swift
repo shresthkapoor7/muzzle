@@ -5,11 +5,13 @@ import SwiftUI
 final class ManagementWindowController: NSWindowController {
     init(
         blocker: BlockerController,
+        isDebugMode: Bool,
         onProtectionStarted: @escaping () -> Void,
         onRetrySystemUpdate: @escaping () -> Void
     ) {
         let rootView = ManagementView(
             blocker: blocker,
+            isDebugMode: isDebugMode,
             onProtectionStarted: onProtectionStarted,
             onRetrySystemUpdate: onRetrySystemUpdate
         )
@@ -31,6 +33,7 @@ final class ManagementWindowController: NSWindowController {
 
 private struct ManagementView: View {
     @ObservedObject var blocker: BlockerController
+    let isDebugMode: Bool
     let onProtectionStarted: () -> Void
     let onRetrySystemUpdate: () -> Void
     @State private var domainInput = ""
@@ -72,6 +75,11 @@ private struct ManagementView: View {
             Text(blocker.statusMessage)
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
+            if isDebugMode {
+                Text("Debug mode is active. Poke notifications are disabled, and protection can be ended without a key.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.orange)
+            }
         }
     }
 
@@ -143,7 +151,9 @@ private struct ManagementView: View {
 
             if blocker.blockedDomains.isEmpty {
                 Text(
-                    blockMode == .timed
+                    isDebugMode
+                        ? "Debug mode keeps Poke notifications disabled."
+                        : blockMode == .timed
                         ? "Timed sessions do not notify Poke. Bypasses temporarily restore access."
                         : "Muzzle asks for an optional Poke note after locking. Bypasses temporarily restore access."
                 )
