@@ -10,6 +10,16 @@ final class DebugModeTests: XCTestCase {
 
     @MainActor
     func testDebugProfileUsesSeparateRuleAndStorageNames() {
+        XCTAssertNotEqual(
+            BlockingProfile.normal.applicationSupportDirectoryName,
+            BlockingProfile.debug.applicationSupportDirectoryName
+        )
+        XCTAssertNotEqual(BlockingProfile.normal.hostsOpeningMarker, BlockingProfile.debug.hostsOpeningMarker)
+        XCTAssertNotEqual(
+            BlockingProfile.normal.packetFilterAnchorFileName,
+            BlockingProfile.debug.packetFilterAnchorFileName
+        )
+        XCTAssertNotEqual(BlockingProfile.normal.packetFilterAnchorName, BlockingProfile.debug.packetFilterAnchorName)
         XCTAssertEqual(BlockingProfile.debug.applicationSupportDirectoryName, "Muzzle Debug")
         XCTAssertEqual(BlockingProfile.debug.hostsOpeningMarker, "# MUZZLE_DEBUG_BEGIN — managed by Muzzle Debug")
         XCTAssertEqual(BlockingProfile.debug.packetFilterAnchorFileName, "muzzle-debug")
