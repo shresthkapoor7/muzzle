@@ -76,7 +76,7 @@ private struct ManagementView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
             if isDebugMode {
-                Text("Debug mode is active. Poke notifications are disabled, and protection can be ended without a key.")
+                Text("Debug mode is an isolated UI sandbox. Poke and system website blocking are disabled.")
                     .font(.system(size: 12))
                     .foregroundStyle(.orange)
             }
@@ -152,7 +152,7 @@ private struct ManagementView: View {
             if blocker.blockedDomains.isEmpty {
                 Text(
                     isDebugMode
-                        ? "Debug mode keeps Poke notifications disabled."
+                        ? "Debug mode is in memory only; it does not change website blocking on this Mac."
                         : blockMode == .timed
                         ? "Timed sessions do not notify Poke. Bypasses temporarily restore access."
                         : "Muzzle asks for an optional Poke note after locking. Bypasses temporarily restore access."

@@ -2,7 +2,7 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let blocker = BlockerController()
+    private let blocker = BlockerController(isDebugMode: DebugMode.isEnabled)
     private let pokeClient = PokeClient()
     private var statusItemController: StatusItemController?
     private var managementWindowController: ManagementWindowController?
@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let isDebugMode = DebugMode.isEnabled
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        guard !isDebugMode else { return }
+
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let runningCopies = NSRunningApplication.runningApplications(
             withBundleIdentifier: "local.muzzle.app"
@@ -33,9 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             try blocker.load()
-            if isDebugMode && (!blocker.blockedDomains.isEmpty || blocker.isBypassActive) {
-                try blocker.endProtection()
-            } else if blocker.needsSystemReconciliation {
+            if blocker.needsSystemReconciliation {
                 try blocker.reconcileSystemState()
             }
         } catch {

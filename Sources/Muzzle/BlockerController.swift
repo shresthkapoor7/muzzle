@@ -28,6 +28,7 @@ final class BlockerController: ObservableObject {
     @Published private(set) var statusMessage = "No websites are blocked yet."
     @Published private(set) var lastErrorMessage: String?
 
+    private let isDebugMode: Bool
     private let domainStore = DomainStore()
     private let timedSessionStore = TimedSessionStore()
     private let bypassSessionStore = BypassSessionStore()
@@ -44,10 +45,20 @@ final class BlockerController: ObservableObject {
     var isProtectionEnforced: Bool { !blockedDomains.isEmpty && !isBypassActive }
     var canQuit: Bool { blockedDomains.isEmpty && !isBypassActive }
     var canStartBypass: Bool { !blockedDomains.isEmpty && !isBypassActive && remainingBypasses > 0 }
-    var needsSystemReconciliation: Bool { !blockedDomains.isEmpty || needsExpiredSessionCleanup }
+    var needsSystemReconciliation: Bool { !isDebugMode && (!blockedDomains.isEmpty || needsExpiredSessionCleanup) }
     var canRetrySystemUpdate: Bool { pendingSystemUpdate != nil }
 
+    init(isDebugMode: Bool = false) {
+        self.isDebugMode = isDebugMode
+    }
+
     func load() throws {
+        guard !isDebugMode else {
+            restoreInMemoryState(SessionState(domains: [], timedSession: nil, bypassSession: nil, remainingBypasses: nil))
+            refreshStatus()
+            return
+        }
+
         blockedDomains = try domainStore.load()
         let timedSession = try timedSessionStore.load()
         timedSessionStartDate = timedSession?.startedAt
@@ -150,6 +161,11 @@ final class BlockerController: ObservableObject {
     }
 
     func reconcileSystemState() throws {
+        guard !isDebugMode else {
+            refreshStatus()
+            return
+        }
+
         isApplying = true
         defer { isApplying = false }
 
@@ -175,7 +191,7 @@ final class BlockerController: ObservableObject {
         pendingSystemUpdate = PendingSystemUpdate(state: endedState, outcome: .none)
         isApplying = true
         defer { isApplying = false }
-        try systemConfigurationController.apply([])
+        try applySystemState(endedState)
         blockedDomains = []
         timedSessionStartDate = nil
         timedSessionEndDate = nil
@@ -225,7 +241,7 @@ final class BlockerController: ObservableObject {
         )
         isApplying = true
         defer { isApplying = false }
-        try systemConfigurationController.apply([])
+        try applySystemState(bypassState)
         do {
             restoreInMemoryState(bypassState)
             try persistCurrentSessionState()
@@ -326,7 +342,7 @@ final class BlockerController: ObservableObject {
 
         do {
             if !isBypassActive {
-                try systemConfigurationController.apply(blockedDomains)
+                try applySystemState(currentSessionState)
             }
             try persistCurrentSessionState()
             scheduleExpiryTimer()
@@ -371,6 +387,8 @@ final class BlockerController: ObservableObject {
     }
 
     private func persistedSessionState() throws -> SessionState {
+        guard !isDebugMode else { return currentSessionState }
+
         let domains = try domainStore.load()
         let timedSession = try timedSessionStore.load()
         let bypassSession = try bypassSessionStore.load()
@@ -384,6 +402,8 @@ final class BlockerController: ObservableObject {
     }
 
     private func writePersistedSessionState(_ state: SessionState) throws {
+        guard !isDebugMode else { return }
+
         try domainStore.save(state.domains)
         if let timedSession = state.timedSession {
             try timedSessionStore.save(startedAt: timedSession.startedAt, endsAt: timedSession.endsAt)
@@ -414,6 +434,7 @@ final class BlockerController: ObservableObject {
     }
 
     private func applySystemState(_ state: SessionState) throws {
+        guard !isDebugMode else { return }
         try systemConfigurationController.apply(state.bypassSession == nil ? state.domains : [])
     }
 
