@@ -36,8 +36,11 @@ final class DebugModeTests: XCTestCase {
         XCTAssertFalse(install.contains("com.apple/websiteblocker"))
 
         let remove = controller.removeCommand()
+        let removeTokens = remove.split(whereSeparator: \ .isWhitespace).map(String.init)
         XCTAssertTrue(remove.contains("-a \(BlockingProfile.debug.packetFilterAnchorName)"))
         XCTAssertTrue(remove.contains("/etc/pf.anchors/\(BlockingProfile.debug.packetFilterAnchorFileName)"))
+        XCTAssertFalse(removeTokens.contains(BlockingProfile.normal.packetFilterAnchorName))
+        XCTAssertFalse(removeTokens.contains("'/etc/pf.anchors/\(BlockingProfile.normal.packetFilterAnchorFileName)'"))
         XCTAssertFalse(remove.contains("com.apple/websiteblocker"))
     }
 }
