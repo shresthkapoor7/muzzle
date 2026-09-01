@@ -4,6 +4,7 @@ import Combine
 @MainActor
 final class StatusItemController: NSObject {
     private let blocker: BlockerController
+    private let isDebugMode: Bool
     private let onManage: () -> Void
     private let onEndSession: () -> Void
     private let onBypass: () -> Void
@@ -14,6 +15,7 @@ final class StatusItemController: NSObject {
 
     init(
         blocker: BlockerController,
+        isDebugMode: Bool,
         onManage: @escaping () -> Void,
         onEndSession: @escaping () -> Void,
         onBypass: @escaping () -> Void,
@@ -21,6 +23,7 @@ final class StatusItemController: NSObject {
         onQuit: @escaping () -> Void
     ) {
         self.blocker = blocker
+        self.isDebugMode = isDebugMode
         self.onManage = onManage
         self.onEndSession = onEndSession
         self.onBypass = onBypass
@@ -64,7 +67,7 @@ final class StatusItemController: NSObject {
     private func rebuildMenu() {
         let menu = NSMenu()
 
-        let title = NSMenuItem(title: "Muzzle", action: nil, keyEquivalent: "")
+        let title = NSMenuItem(title: isDebugMode ? "Muzzle (Debug Mode)" : "Muzzle", action: nil, keyEquivalent: "")
         title.isEnabled = false
         menu.addItem(title)
 
@@ -87,9 +90,10 @@ final class StatusItemController: NSObject {
                 menu.addItem(.separator())
                 menu.addItem(makeItem("Bypass… (\(blocker.remainingBypasses) left)", action: #selector(bypass)))
             }
-            if !blocker.isTimedSession {
+            if isDebugMode || !blocker.isTimedSession {
                 menu.addItem(.separator())
-                menu.addItem(makeItem("End protection with key…", action: #selector(endSession)))
+                let endSessionTitle = isDebugMode ? "End protection" : "End protection with key…"
+                menu.addItem(makeItem(endSessionTitle, action: #selector(endSession)))
             }
         }
 

@@ -2,10 +2,19 @@ import Foundation
 
 struct PacketFilterController {
     private let fileManager = FileManager.default
-    private let anchorURL = URL(fileURLWithPath: "/etc/pf.anchors/muzzle")
-    private let anchorName = "com.apple/muzzle"
+    private let profile: BlockingProfile
     private let legacyAnchorURL = URL(fileURLWithPath: "/etc/pf.anchors/websiteblocker")
     private let legacyAnchorName = "com.apple/websiteblocker"
+
+    init(profile: BlockingProfile = .normal) {
+        self.profile = profile
+    }
+
+    private var anchorURL: URL {
+        URL(fileURLWithPath: "/etc/pf.anchors/\(profile.packetFilterAnchorFileName)")
+    }
+
+    private var anchorName: String { profile.packetFilterAnchorName }
 
     enum PacketFilterError: LocalizedError {
         case noResolvedAddresses
@@ -69,7 +78,7 @@ struct PacketFilterController {
     }
 
     func rules(ipv4Addresses: [String], ipv6Addresses: [String]) -> String {
-        var rules = ["# This anchor is managed by Muzzle. Do not edit while protection is active."]
+        var rules = ["# This anchor is managed by Muzzle\(profile == .debug ? " Debug" : ""). Do not edit while protection is active."]
 
         if !ipv4Addresses.isEmpty {
             rules.append("table <muzzle_ipv4> persist { \(ipv4Addresses.sorted().joined(separator: ", ")) }")
@@ -137,11 +146,11 @@ struct PacketFilterController {
             appropriateFor: nil,
             create: true
         )
-        .appendingPathComponent("Muzzle", isDirectory: true)
+        .appendingPathComponent(profile.applicationSupportDirectoryName, isDirectory: true)
         .appendingPathComponent("pf-staging-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        let anchorStagingURL = directory.appendingPathComponent("muzzle")
+        let anchorStagingURL = directory.appendingPathComponent(profile.packetFilterAnchorFileName)
         try Data(rules.utf8).write(to: anchorStagingURL, options: .atomic)
         return anchorStagingURL
     }
@@ -151,7 +160,8 @@ struct PacketFilterController {
     }
 
     private func removeLegacyCommand() -> String {
-        """
+        guard profile == .normal else { return ":" }
+        return """
         (/sbin/pfctl -a \(legacyAnchorName) -F all >/dev/null 2>&1 || true) && \\
         /bin/rm -f \(shellQuote(legacyAnchorURL.path))
         """

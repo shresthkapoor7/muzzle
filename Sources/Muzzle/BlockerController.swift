@@ -28,11 +28,11 @@ final class BlockerController: ObservableObject {
     @Published private(set) var statusMessage = "No websites are blocked yet."
     @Published private(set) var lastErrorMessage: String?
 
-    private let domainStore = DomainStore()
-    private let timedSessionStore = TimedSessionStore()
-    private let bypassSessionStore = BypassSessionStore()
-    private let bypassAllowanceStore = BypassAllowanceStore()
-    private let systemConfigurationController = SystemConfigurationController()
+    private let domainStore: DomainStore
+    private let timedSessionStore: TimedSessionStore
+    private let bypassSessionStore: BypassSessionStore
+    private let bypassAllowanceStore: BypassAllowanceStore
+    private let systemConfigurationController: SystemConfigurationController
     private var expiryTimer: Timer?
     private var progressTimer: Timer?
     private var bypassTimer: Timer?
@@ -46,6 +46,18 @@ final class BlockerController: ObservableObject {
     var canStartBypass: Bool { !blockedDomains.isEmpty && !isBypassActive && remainingBypasses > 0 }
     var needsSystemReconciliation: Bool { !blockedDomains.isEmpty || needsExpiredSessionCleanup }
     var canRetrySystemUpdate: Bool { pendingSystemUpdate != nil }
+
+    init(isDebugMode: Bool = false) {
+        let profile: BlockingProfile = isDebugMode ? .debug : .normal
+        domainStore = DomainStore(
+            applicationSupportDirectoryName: profile.applicationSupportDirectoryName,
+            migratesLegacyStore: !isDebugMode
+        )
+        timedSessionStore = TimedSessionStore(applicationSupportDirectoryName: profile.applicationSupportDirectoryName)
+        bypassSessionStore = BypassSessionStore(applicationSupportDirectoryName: profile.applicationSupportDirectoryName)
+        bypassAllowanceStore = BypassAllowanceStore(applicationSupportDirectoryName: profile.applicationSupportDirectoryName)
+        systemConfigurationController = SystemConfigurationController(profile: profile)
+    }
 
     func load() throws {
         blockedDomains = try domainStore.load()
@@ -175,7 +187,7 @@ final class BlockerController: ObservableObject {
         pendingSystemUpdate = PendingSystemUpdate(state: endedState, outcome: .none)
         isApplying = true
         defer { isApplying = false }
-        try systemConfigurationController.apply([])
+        try applySystemState(endedState)
         blockedDomains = []
         timedSessionStartDate = nil
         timedSessionEndDate = nil
@@ -225,7 +237,7 @@ final class BlockerController: ObservableObject {
         )
         isApplying = true
         defer { isApplying = false }
-        try systemConfigurationController.apply([])
+        try applySystemState(bypassState)
         do {
             restoreInMemoryState(bypassState)
             try persistCurrentSessionState()
@@ -326,7 +338,7 @@ final class BlockerController: ObservableObject {
 
         do {
             if !isBypassActive {
-                try systemConfigurationController.apply(blockedDomains)
+                try applySystemState(currentSessionState)
             }
             try persistCurrentSessionState()
             scheduleExpiryTimer()

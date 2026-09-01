@@ -2,6 +2,11 @@ import Foundation
 
 struct BypassSessionStore {
     private let fileManager = FileManager.default
+    private let applicationSupportDirectoryName: String
+
+    init(applicationSupportDirectoryName: String = "Muzzle") {
+        self.applicationSupportDirectoryName = applicationSupportDirectoryName
+    }
 
     private var storeURL: URL {
         get throws {
@@ -11,7 +16,7 @@ struct BypassSessionStore {
                 appropriateFor: nil,
                 create: true
             )
-            let directory = base.appendingPathComponent("Muzzle", isDirectory: true)
+            let directory = base.appendingPathComponent(applicationSupportDirectoryName, isDirectory: true)
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             return directory.appendingPathComponent("bypass-session.json")
         }

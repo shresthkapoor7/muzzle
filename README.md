@@ -12,13 +12,21 @@ scripts/build-app.sh
 open "dist/Muzzle.app"
 ```
 
-Before starting protection, put your Poke bearer token in the project’s local `.env` file:
+For local testing, use debug mode:
+
+```sh
+open -n "dist/Muzzle.app" --args --debug
+```
+
+Debug mode applies real website blocks using its own saved session data, hosts-file markers, and PF anchor. It never reads or changes the normal app’s session or rules, never sends a lock key or bypass event to Poke, and lets you end protection immediately without a key — including timed sessions. `-n` runs the debug instance beside the normal menu-bar app. It is intended only for local development; launch without `--debug` for the normal protected flow.
+
+Before starting normal-mode protection, put your Poke bearer token in the project’s local `.env` file:
 
 ```sh
 POKE_API_KEY=your-token-here
 ```
 
-The file is ignored by Git. When a session key is created, Muzzle posts this JSON to Poke and never displays or copies the code locally. The optional one-line “What are you working on?” field adds `working_on` only when filled in. If Muzzle reopens an already-active block, it asks for the same optional context before sending that session’s new key:
+The file is ignored by Git. In normal mode, when a session key is created, Muzzle posts this JSON to Poke and never displays or copies the code locally. The optional one-line “What are you working on?” field adds `working_on` only when filled in. If normal Muzzle reopens an already-active block, it asks for the same optional context before sending that session’s new key. Debug mode does not require a Poke token and never sends lock keys or bypass events.
 
 ```json
 {"event":"lock_key","key":"123456","date":"2026-08-24"}
@@ -26,11 +34,11 @@ The file is ignored by Git. When a session key is created, Muzzle posts this JSO
 
 Muzzle is a menu-bar agent. It shows an outlined muzzle mark when inactive and a filled mark when it is blocking websites. It does not appear as a regular app in the Dock or Force Quit Applications list. Click the icon and choose **Start blocking…** to add the first domain, or **Manage protected websites…** while it is active. Additional websites can be added at any time, including during a bypass; they take effect when that bypass ends. Choose **For a set time** and enter any positive whole number of minutes to end protection automatically at that deadline; timed blocks do not notify Poke. The one-time session key is required to end untimed protection early.
 
-Use `open "dist/Muzzle.app"` to launch it. Do not use `open -n`: that option explicitly asks macOS to create a second instance. The bundle also declares itself single-instance, so a normal launch focuses the existing menu-bar app.
+Use `open "dist/Muzzle.app"` to launch it. Use `open -n "dist/Muzzle.app" --args --debug` for the separate local debug sandbox. Do not use `open -n` for normal launches: that option explicitly asks macOS to create a second instance. Normal launches still focus the existing menu-bar app.
 
-Muzzle ignores direct quit requests such as Command-Q while protection is active. When inactive, its menu includes **Quit Muzzle**. It sends a fresh six-digit session code to Poke each time protection starts (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove its hosts-file entries; Muzzle then remains open as an inactive menu-bar icon, ready to start again. It does not install itself as a login item. If Poke delivery fails, protection remains active and the error explains how to fix the delivery configuration. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
+Muzzle ignores direct quit requests such as Command-Q while protection is active. When inactive, its menu includes **Quit Muzzle**. In normal mode, it sends a fresh six-digit session code to Poke each time protection starts (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove its hosts-file entries; Muzzle then remains open as an inactive menu-bar icon, ready to start again. It does not install itself as a login item. If Poke delivery fails, protection remains active and the error explains how to fix the delivery configuration. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
 
-Before blocking the first website, choose how many bypasses the session permits: 0, 1, 2, or 3 (default: 1). While protection is active and an allowance remains, choose **Bypass…** from the menu-bar menu and enter any positive whole number of minutes. Muzzle consumes one allowance, removes the block temporarily, and restores it automatically when the bypass ends. Untimed sessions send Poke a `bypass` event with the selected number of minutes; timed sessions keep bypasses local. Quit remains unavailable for the whole bypass.
+Before blocking the first website, choose how many bypasses the session permits: 0, 1, 2, or 3 (default: 1). While protection is active and an allowance remains, choose **Bypass…** from the menu-bar menu and enter any positive whole number of minutes. Muzzle consumes one allowance, removes the block temporarily, and restores it automatically when the bypass ends. In normal mode, untimed sessions send Poke a `bypass` event with the selected number of minutes; timed sessions keep bypasses local. Debug-mode bypasses are always local. Quit remains unavailable for the whole bypass.
 
 ## How blocking works
 
@@ -46,7 +54,7 @@ Muzzle clears matching PF connection states when a block starts, but a browser c
 
 ## Safety and recovery
 
-- Muzzle sends the session key to Poke when protection starts; it never displays or copies the key locally.
+- Normal Muzzle sends the session key to Poke when protection starts; it never displays or copies the key locally. Debug mode does neither.
 - Ending protection removes only the `MUZZLE` section it created and leaves Muzzle open in standby.
 - If the process is force-quit, reopening the app lets you manage its prior saved list again.
 - The managed hosts-file section is human-readable and can be removed manually by an administrator if needed.
