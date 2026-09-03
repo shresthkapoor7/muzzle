@@ -127,9 +127,17 @@ private struct ManagementView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Muzzle", systemImage: "shield.lefthalf.filled")
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundStyle(.primary)
+            HStack(spacing: 12) {
+                Image(nsImage: MuzzleIcon.alertImage())
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 36, height: 36)
+                    .accessibilityHidden(true)
+
+                Text("Muzzle")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(.primary)
+            }
             Text(blocker.statusMessage)
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
