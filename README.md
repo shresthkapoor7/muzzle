@@ -34,14 +34,17 @@ Use `open "dist/Muzzle.app"` to launch it. Use `open -n "dist/Muzzle.app" --args
 
 ## Create a downloadable DMG
 
-Build the app, then package it as a drag-to-Applications disk image:
+Build the app, then package it as a drag-to-Applications disk image. DMG layout generation needs Python 3.10 or later:
 
 ```sh
+python3 -m pip install -r scripts/requirements-dmg.txt
 scripts/build-app.sh
 MUZZLE_VERSION=1.0.0 scripts/package-dmg.sh
 ```
 
-This creates `dist/Muzzle-1.0.0-arm64.dmg` on an Apple Silicon Mac (or an `x86_64` filename on an Intel Mac). The app and DMG are deliberately unsigned beyond an ad-hoc local signature, so macOS will require a first-launch confirmation from people who download it.
+This creates `dist/Muzzle-1.0.0-arm64.dmg` on an Apple Silicon Mac (or an `x86_64` filename on an Intel Mac). The disk image uses a fixed installer layout with an Applications shortcut. The app and DMG are deliberately unsigned beyond an ad-hoc local signature, so macOS will require a first-launch confirmation from people who download it.
+
+Eject any mounted Muzzle disk image before running the package script. This lets Finder record the background image against the final volume name.
 
 Pushing a tag such as `v1.0.0` runs the **Release DMG** GitHub Actions workflow. It builds Apple Silicon and Intel DMGs and creates a GitHub Release containing both downloads. The workflow is not triggered by normal commits, so an unpublished change never replaces a released download.
 

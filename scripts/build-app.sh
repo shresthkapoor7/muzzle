@@ -16,6 +16,7 @@ rm -rf "$app_path"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "$task_root/App/Info.plist" "$app_path/Contents/Info.plist"
 cp "$(swift build "${build_arguments[@]}" --show-bin-path)/Muzzle" "$app_path/Contents/MacOS/Muzzle"
+cp "$task_root/App/Resources/Muzzle.icns" "$app_path/Contents/Resources/Muzzle.icns"
 chmod +x "$app_path/Contents/MacOS/Muzzle"
 codesign --force --deep --sign - "$app_path"
 

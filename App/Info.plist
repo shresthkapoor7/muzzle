@@ -6,6 +6,8 @@
     <string>Muzzle</string>
     <key>CFBundleExecutable</key>
     <string>Muzzle</string>
+    <key>CFBundleIconFile</key>
+    <string>Muzzle</string>
     <key>CFBundleIdentifier</key>
     <string>local.muzzle.app</string>
     <key>CFBundleName</key>
