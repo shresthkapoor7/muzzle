@@ -5,12 +5,11 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
-
 jobs:
   build:
     name: Build ${{ matrix.name }} DMG
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -24,6 +23,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
@@ -53,6 +54,8 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download release assets
         uses: actions/download-artifact@v4
