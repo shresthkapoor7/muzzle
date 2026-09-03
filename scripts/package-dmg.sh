@@ -4,6 +4,7 @@ set -euo pipefail
 task_root="${0:A:h:h}"
 app_path="${1:-$task_root/dist/Muzzle.app}"
 version="${MUZZLE_VERSION:-dev}"
+version="${version//\//-}"
 architecture="${MUZZLE_ARCH:-$(lipo -archs "$app_path/Contents/MacOS/Muzzle" | tr ' ' '-')}"
 output_path="${2:-$task_root/dist/Muzzle-${version}-${architecture}.dmg}"
 background_path="$task_root/assets/dmg-background.tiff"
