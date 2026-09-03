@@ -20,8 +20,8 @@ final class ManagementWindowController: NSWindowController {
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Muzzle"
-        window.setContentSize(NSSize(width: 560, height: 760))
-        window.minSize = NSSize(width: 500, height: 680)
+        window.setContentSize(NSSize(width: 560, height: 720))
+        window.minSize = NSSize(width: 500, height: 600)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
         window.center()
@@ -119,13 +119,6 @@ private struct ManagementView: View {
                 }
             }
 
-            Text(
-                isEditingPokeAPIKeyDisabled
-                    ? "Keep this key saved until the active untimed session has ended."
-                    : "Muzzle saves this key only in your macOS Keychain. It is required before you can start an \"Until I end it\" lock."
-            )
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
         }
         .padding(18)
         .background(Color(nsColor: .controlBackgroundColor))
