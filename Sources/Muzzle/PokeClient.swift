@@ -13,6 +13,7 @@ struct PokeClient {
         case missingAPIKey
         case invalidResponse
         case rejected(Int)
+        case deliveryFailed
 
         var errorDescription: String? {
             switch self {
@@ -22,6 +23,8 @@ struct PokeClient {
                 "Poke did not return a valid response."
             case .rejected(let statusCode):
                 "Poke rejected the request with HTTP status \(statusCode)."
+            case .deliveryFailed:
+                "Poke did not confirm that the message was delivered."
             }
         }
     }
@@ -67,7 +70,7 @@ struct PokeClient {
             return
         }
 
-        URLSession.shared.dataTask(with: request) { _, response, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let error {
                 completionBox.call(.failure(error))
                 return
@@ -78,6 +81,15 @@ struct PokeClient {
             }
             guard (200...299).contains(response.statusCode) else {
                 completionBox.call(.failure(PokeError.rejected(response.statusCode)))
+                return
+            }
+            guard let data,
+                  let delivery = try? JSONDecoder().decode(PokeDeliveryResponse.self, from: data) else {
+                completionBox.call(.failure(PokeError.invalidResponse))
+                return
+            }
+            guard delivery.success else {
+                completionBox.call(.failure(PokeError.deliveryFailed))
                 return
             }
             completionBox.call(.success(()))
@@ -134,4 +146,8 @@ private struct ConnectionTestPayload: Encodable {
     let event = "connection_test"
     let message = "Muzzle successfully connected to Poke."
     let date: String
+}
+
+private struct PokeDeliveryResponse: Decodable {
+    let success: Bool
 }
