@@ -4,13 +4,19 @@ set -euo pipefail
 task_root="${0:A:h:h}"
 cd "$task_root"
 
-swift build -c release
+build_arguments=(-c release)
+if [[ -n "${MUZZLE_ARCH:-}" ]]; then
+  build_arguments+=(--arch "$MUZZLE_ARCH")
+fi
+
+swift build "${build_arguments[@]}"
 
 app_path="$task_root/dist/Muzzle.app"
 rm -rf "$app_path"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "$task_root/App/Info.plist" "$app_path/Contents/Info.plist"
-cp "$task_root/.build/release/Muzzle" "$app_path/Contents/MacOS/Muzzle"
+cp "$(swift build "${build_arguments[@]}" --show-bin-path)/Muzzle" "$app_path/Contents/MacOS/Muzzle"
+cp "$task_root/App/Resources/Muzzle.icns" "$app_path/Contents/Resources/Muzzle.icns"
 chmod +x "$app_path/Contents/MacOS/Muzzle"
 codesign --force --deep --sign - "$app_path"
 

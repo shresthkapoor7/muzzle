@@ -3,7 +3,8 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let blocker = BlockerController(isDebugMode: DebugMode.isEnabled)
-    private let pokeClient = PokeClient()
+    private let pokeAPIKeyStore = PokeAPIKeyStore()
+    private lazy var pokeClient = PokeClient(apiKeyStore: pokeAPIKeyStore)
     private var statusItemController: StatusItemController?
     private var managementWindowController: ManagementWindowController?
     private var workContextAlert: NSAlert?
@@ -71,7 +72,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             managementWindowController = ManagementWindowController(
                 blocker: blocker,
                 isDebugMode: isDebugMode,
+                pokeAPIKeyStore: pokeAPIKeyStore,
                 onProtectionStarted: { [weak self] in self?.startProtectionSession() },
+                onTestPoke: { [weak self] completion in self?.sendPokeConnectionTest(completion: completion) },
                 onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() }
             )
         }
@@ -90,8 +93,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func sendPokeConnectionTest(completion: @escaping (Result<Void, Error>) -> Void) {
+        pokeClient.sendConnectionTest(completion: completion)
+    }
+
     private func startProtectionSession() {
         guard !isDebugMode else { return }
+        guard pokeAPIKeyStore.isConfigured else {
+            blocker.present(error: PokeClient.PokeError.missingAPIKey)
+            return
+        }
         unlockKey = UnlockKey.make()
         DispatchQueue.main.async { [weak self] in
             self?.requestWorkContextForPokeDelivery()

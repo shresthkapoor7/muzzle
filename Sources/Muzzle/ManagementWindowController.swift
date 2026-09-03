@@ -6,20 +6,24 @@ final class ManagementWindowController: NSWindowController {
     init(
         blocker: BlockerController,
         isDebugMode: Bool,
+        pokeAPIKeyStore: PokeAPIKeyStore,
         onProtectionStarted: @escaping () -> Void,
+        onTestPoke: @escaping (@escaping (Result<Void, Error>) -> Void) -> Void,
         onRetrySystemUpdate: @escaping () -> Void
     ) {
         let rootView = ManagementView(
             blocker: blocker,
             isDebugMode: isDebugMode,
+            pokeAPIKeyStore: pokeAPIKeyStore,
             onProtectionStarted: onProtectionStarted,
+            onTestPoke: onTestPoke,
             onRetrySystemUpdate: onRetrySystemUpdate
         )
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Muzzle"
-        window.setContentSize(NSSize(width: 560, height: 620))
-        window.minSize = NSSize(width: 500, height: 540)
+        window.setContentSize(NSSize(width: 560, height: 720))
+        window.minSize = NSSize(width: 500, height: 600)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
         window.center()
@@ -34,22 +38,33 @@ final class ManagementWindowController: NSWindowController {
 private struct ManagementView: View {
     @ObservedObject var blocker: BlockerController
     let isDebugMode: Bool
+    @ObservedObject var pokeAPIKeyStore: PokeAPIKeyStore
     let onProtectionStarted: () -> Void
+    let onTestPoke: (@escaping (Result<Void, Error>) -> Void) -> Void
     let onRetrySystemUpdate: () -> Void
     @State private var domainInput = ""
     @State private var blockMode = BlockMode.timed
     @State private var timedMinutesInput = "30"
     @State private var allowedBypasses = 1
+    @State private var pokeAPIKeyInput = ""
+    @State private var pokeAPIKeyError: String?
+    @State private var isTestingPoke = false
+    @State private var didSendPokeTest = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            header
-            setupPanel
-            blockedList
-            Spacer(minLength: 0)
-            footer
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                if !isDebugMode {
+                    pokeAPIKeyPanel
+                }
+                setupPanel
+                blockedList
+                footer
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
         }
-        .padding(24)
         .frame(minWidth: 460, minHeight: 460)
         .alert(
             "Couldn’t update website blocking",
@@ -65,13 +80,86 @@ private struct ManagementView: View {
         } message: {
             Text(blocker.lastErrorMessage ?? "Unknown error")
         }
+        .alert(
+            "Couldn’t update Poke API key",
+            isPresented: Binding(
+                get: { pokeAPIKeyError != nil },
+                set: { if !$0 { pokeAPIKeyError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { pokeAPIKeyError = nil }
+        } message: {
+            Text(pokeAPIKeyError ?? "Unknown error")
+        }
+    }
+
+    private var pokeAPIKeyPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Poke API key")
+                    .font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Label(
+                    pokeAPIKeyStore.isConfigured ? "Saved in Keychain" : "Required for untimed locks",
+                    systemImage: pokeAPIKeyStore.isConfigured ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(pokeAPIKeyStore.isConfigured ? .green : .orange)
+            }
+
+            HStack(spacing: 8) {
+                SecureField(
+                    pokeAPIKeyStore.isConfigured ? "Replace saved API key" : "Paste your Poke API key",
+                    text: $pokeAPIKeyInput
+                )
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Poke API key")
+                .disabled(isEditingPokeAPIKeyDisabled)
+
+                Button("Paste key", action: pastePokeAPIKey)
+                    .disabled(isEditingPokeAPIKeyDisabled)
+                    .accessibilityHint("Pastes the Poke API key from the clipboard")
+
+                Button(pokeAPIKeyStore.isConfigured ? "Replace" : "Save", action: savePokeAPIKey)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(pokeAPIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isEditingPokeAPIKeyDisabled)
+
+                if pokeAPIKeyStore.isConfigured {
+                    Button("Remove", role: .destructive, action: removePokeAPIKey)
+                        .disabled(isEditingPokeAPIKeyDisabled)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button(isTestingPoke ? "Sending…" : "Test Poke", action: testPoke)
+                    .disabled(isTestingPoke || isEditingPokeAPIKeyDisabled || !canTestPoke)
+                    .accessibilityHint("Sends a test message to Poke using this API key")
+
+                if didSendPokeTest {
+                    Label("Test message sent", systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.green)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Muzzle", systemImage: "shield.lefthalf.filled")
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundStyle(.primary)
+            HStack(spacing: 12) {
+                Image(nsImage: MuzzleIcon.alertImage())
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 36, height: 36)
+                    .accessibilityHidden(true)
+
+                Text("Muzzle")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(.primary)
+            }
             Text(blocker.statusMessage)
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
@@ -155,7 +243,9 @@ private struct ManagementView: View {
                         ? "Debug mode blocks websites with separate local rules and never notifies Poke."
                         : blockMode == .timed
                         ? "Timed sessions do not notify Poke. Bypasses temporarily restore access."
-                        : "Muzzle asks for an optional Poke note after locking. Bypasses temporarily restore access."
+                        : pokeAPIKeyStore.isConfigured
+                        ? "Muzzle asks for an optional Poke note after locking. Bypasses temporarily restore access."
+                        : "Save a Poke API key above before starting an untimed lock."
                 )
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -164,7 +254,7 @@ private struct ManagementView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
         }
-        .padding(18)
+        .padding(16)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
@@ -192,7 +282,7 @@ private struct ManagementView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity, minHeight: 170)
+                .frame(maxWidth: .infinity, minHeight: 150)
                 .background(Color(nsColor: .controlBackgroundColor))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
@@ -251,6 +341,10 @@ private struct ManagementView: View {
     private func addDomain() {
         let wasInactive = blocker.blockedDomains.isEmpty
         guard !wasInactive || blockMode == .untilEnded || timedMinutes != nil else { return }
+        guard isDebugMode || !wasInactive || blockMode != .untilEnded || pokeAPIKeyStore.isConfigured else {
+            pokeAPIKeyError = "Save a Poke API key before starting an untimed lock, so Muzzle can send the unlock key to Poke."
+            return
+        }
         blocker.add(
             domainInput,
             timedDurationMinutes: wasInactive && blockMode == .timed ? timedMinutes : nil,
@@ -280,6 +374,72 @@ private struct ManagementView: View {
         domainInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || blocker.isApplying
             || (blocker.blockedDomains.isEmpty && blockMode == .timed && timedMinutes == nil)
+            || (blocker.blockedDomains.isEmpty && blockMode == .untilEnded && !isDebugMode && !pokeAPIKeyStore.isConfigured)
+    }
+
+    private var isEditingPokeAPIKeyDisabled: Bool {
+        !blocker.blockedDomains.isEmpty && !blocker.isTimedSession
+    }
+
+    private var canTestPoke: Bool {
+        pokeAPIKeyStore.isConfigured || !pokeAPIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func savePokeAPIKey() {
+        do {
+            try pokeAPIKeyStore.save(pokeAPIKeyInput)
+            pokeAPIKeyInput = ""
+        } catch {
+            pokeAPIKeyError = error.localizedDescription
+        }
+    }
+
+    private func pastePokeAPIKey() {
+        guard let key = NSPasteboard.general.string(forType: .string) else {
+            pokeAPIKeyError = "Copy your Poke API key, then choose Paste key."
+            return
+        }
+        pokeAPIKeyInput = key.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func testPoke() {
+        let enteredKey = pokeAPIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !enteredKey.isEmpty {
+            do {
+                try pokeAPIKeyStore.save(enteredKey)
+                pokeAPIKeyInput = ""
+            } catch {
+                pokeAPIKeyError = error.localizedDescription
+                return
+            }
+        }
+
+        guard pokeAPIKeyStore.isConfigured else {
+            pokeAPIKeyError = "Paste or enter a Poke API key before testing it."
+            return
+        }
+
+        didSendPokeTest = false
+        isTestingPoke = true
+        onTestPoke { result in
+            DispatchQueue.main.async {
+                isTestingPoke = false
+                switch result {
+                case .success:
+                    didSendPokeTest = true
+                case let .failure(error):
+                    pokeAPIKeyError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func removePokeAPIKey() {
+        do {
+            try pokeAPIKeyStore.remove()
+        } catch {
+            pokeAPIKeyError = error.localizedDescription
+        }
     }
 }
 
