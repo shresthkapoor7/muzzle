@@ -1,7 +1,13 @@
 import Foundation
 
+@MainActor
 struct PokeClient {
     private let endpoint = URL(string: "https://poke.com/api/v1/inbound/api-message")!
+    private let apiKeyStore: PokeAPIKeyStore
+
+    init(apiKeyStore: PokeAPIKeyStore) {
+        self.apiKeyStore = apiKeyStore
+    }
 
     enum PokeError: LocalizedError {
         case missingAPIKey
@@ -98,29 +104,7 @@ struct PokeClient {
     }
 
     private func loadAPIKey() -> String? {
-        if let key = ProcessInfo.processInfo.environment["POKE_API_KEY"], !key.isEmpty {
-            return key
-        }
-
-        for envURL in envFileLocations() {
-            guard let contents = try? String(contentsOf: envURL, encoding: .utf8) else { continue }
-            for line in contents.split(whereSeparator: \.isNewline) {
-                let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-                guard parts.count == 2,
-                      parts[0].trimmingCharacters(in: .whitespaces) == "POKE_API_KEY" else { continue }
-                let key = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
-                if !key.isEmpty { return key }
-            }
-        }
-        return nil
-    }
-
-    private func envFileLocations() -> [URL] {
-        let projectDirectory = Bundle.main.bundleURL
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let currentDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        return [projectDirectory.appendingPathComponent(".env"), currentDirectory.appendingPathComponent(".env")]
+        apiKeyStore.apiKey()
     }
 
     private func currentDateString() -> String {

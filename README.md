@@ -20,13 +20,9 @@ open -n "dist/Muzzle.app" --args --debug
 
 Debug mode applies real website blocks using its own saved session data, hosts-file markers, and PF anchor. It never reads or changes the normal app’s session or rules, never sends a lock key or bypass event to Poke, and lets you end protection immediately without a key — including timed sessions. `-n` runs the debug instance beside the normal menu-bar app. It is intended only for local development; launch without `--debug` for the normal protected flow.
 
-Before starting normal-mode protection, put your Poke bearer token in the project’s local `.env` file:
+Before starting an **Until I end it** normal-mode lock, open **Start blocking…** and save your Poke bearer token in the **Poke API key** field. Muzzle stores it in your macOS Keychain, not in the app bundle or a project `.env` file. Timed sessions do not need a Poke key. Muzzle prevents a Poke key from being removed or replaced while an untimed lock is active.
 
-```sh
-POKE_API_KEY=your-token-here
-```
-
-The file is ignored by Git. In normal mode, when a session key is created, Muzzle posts this JSON to Poke and never displays or copies the code locally. The optional one-line “What are you working on?” field adds `working_on` only when filled in. If normal Muzzle reopens an already-active block, it asks for the same optional context before sending that session’s new key. Debug mode does not require a Poke token and never sends lock keys or bypass events.
+In normal mode, when a session key is created, Muzzle posts this JSON to Poke and never displays or copies the code locally. The optional one-line “What are you working on?” field adds `working_on` only when filled in. If normal Muzzle reopens an already-active block, it asks for the same optional context before sending that session’s new key. Debug mode does not require a Poke token and never sends lock keys or bypass events.
 
 ```json
 {"event":"lock_key","key":"123456","date":"2026-08-24"}

@@ -6,20 +6,22 @@ final class ManagementWindowController: NSWindowController {
     init(
         blocker: BlockerController,
         isDebugMode: Bool,
+        pokeAPIKeyStore: PokeAPIKeyStore,
         onProtectionStarted: @escaping () -> Void,
         onRetrySystemUpdate: @escaping () -> Void
     ) {
         let rootView = ManagementView(
             blocker: blocker,
             isDebugMode: isDebugMode,
+            pokeAPIKeyStore: pokeAPIKeyStore,
             onProtectionStarted: onProtectionStarted,
             onRetrySystemUpdate: onRetrySystemUpdate
         )
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Muzzle"
-        window.setContentSize(NSSize(width: 560, height: 620))
-        window.minSize = NSSize(width: 500, height: 540)
+        window.setContentSize(NSSize(width: 560, height: 760))
+        window.minSize = NSSize(width: 500, height: 680)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
         window.center()
@@ -34,16 +36,22 @@ final class ManagementWindowController: NSWindowController {
 private struct ManagementView: View {
     @ObservedObject var blocker: BlockerController
     let isDebugMode: Bool
+    @ObservedObject var pokeAPIKeyStore: PokeAPIKeyStore
     let onProtectionStarted: () -> Void
     let onRetrySystemUpdate: () -> Void
     @State private var domainInput = ""
     @State private var blockMode = BlockMode.timed
     @State private var timedMinutesInput = "30"
     @State private var allowedBypasses = 1
+    @State private var pokeAPIKeyInput = ""
+    @State private var pokeAPIKeyError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             header
+            if !isDebugMode {
+                pokeAPIKeyPanel
+            }
             setupPanel
             blockedList
             Spacer(minLength: 0)
@@ -65,6 +73,63 @@ private struct ManagementView: View {
         } message: {
             Text(blocker.lastErrorMessage ?? "Unknown error")
         }
+        .alert(
+            "Couldn’t update Poke API key",
+            isPresented: Binding(
+                get: { pokeAPIKeyError != nil },
+                set: { if !$0 { pokeAPIKeyError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { pokeAPIKeyError = nil }
+        } message: {
+            Text(pokeAPIKeyError ?? "Unknown error")
+        }
+    }
+
+    private var pokeAPIKeyPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Poke API key")
+                    .font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Label(
+                    pokeAPIKeyStore.isConfigured ? "Saved in Keychain" : "Required for untimed locks",
+                    systemImage: pokeAPIKeyStore.isConfigured ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(pokeAPIKeyStore.isConfigured ? .green : .orange)
+            }
+
+            HStack(spacing: 8) {
+                SecureField(
+                    pokeAPIKeyStore.isConfigured ? "Replace saved API key" : "Paste your Poke API key",
+                    text: $pokeAPIKeyInput
+                )
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Poke API key")
+                .disabled(isEditingPokeAPIKeyDisabled)
+
+                Button(pokeAPIKeyStore.isConfigured ? "Replace" : "Save", action: savePokeAPIKey)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(pokeAPIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isEditingPokeAPIKeyDisabled)
+
+                if pokeAPIKeyStore.isConfigured {
+                    Button("Remove", role: .destructive, action: removePokeAPIKey)
+                        .disabled(isEditingPokeAPIKeyDisabled)
+                }
+            }
+
+            Text(
+                isEditingPokeAPIKeyDisabled
+                    ? "Keep this key saved until the active untimed session has ended."
+                    : "Muzzle saves this key only in your macOS Keychain. It is required before you can start an \"Until I end it\" lock."
+            )
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+        }
+        .padding(18)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var header: some View {
@@ -155,7 +220,9 @@ private struct ManagementView: View {
                         ? "Debug mode blocks websites with separate local rules and never notifies Poke."
                         : blockMode == .timed
                         ? "Timed sessions do not notify Poke. Bypasses temporarily restore access."
-                        : "Muzzle asks for an optional Poke note after locking. Bypasses temporarily restore access."
+                        : pokeAPIKeyStore.isConfigured
+                        ? "Muzzle asks for an optional Poke note after locking. Bypasses temporarily restore access."
+                        : "Save a Poke API key above before starting an untimed lock."
                 )
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -251,6 +318,10 @@ private struct ManagementView: View {
     private func addDomain() {
         let wasInactive = blocker.blockedDomains.isEmpty
         guard !wasInactive || blockMode == .untilEnded || timedMinutes != nil else { return }
+        guard isDebugMode || !wasInactive || blockMode != .untilEnded || pokeAPIKeyStore.isConfigured else {
+            pokeAPIKeyError = "Save a Poke API key before starting an untimed lock, so Muzzle can send the unlock key to Poke."
+            return
+        }
         blocker.add(
             domainInput,
             timedDurationMinutes: wasInactive && blockMode == .timed ? timedMinutes : nil,
@@ -280,6 +351,28 @@ private struct ManagementView: View {
         domainInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || blocker.isApplying
             || (blocker.blockedDomains.isEmpty && blockMode == .timed && timedMinutes == nil)
+            || (blocker.blockedDomains.isEmpty && blockMode == .untilEnded && !isDebugMode && !pokeAPIKeyStore.isConfigured)
+    }
+
+    private var isEditingPokeAPIKeyDisabled: Bool {
+        !blocker.blockedDomains.isEmpty && !blocker.isTimedSession
+    }
+
+    private func savePokeAPIKey() {
+        do {
+            try pokeAPIKeyStore.save(pokeAPIKeyInput)
+            pokeAPIKeyInput = ""
+        } catch {
+            pokeAPIKeyError = error.localizedDescription
+        }
+    }
+
+    private func removePokeAPIKey() {
+        do {
+            try pokeAPIKeyStore.remove()
+        } catch {
+            pokeAPIKeyError = error.localizedDescription
+        }
     }
 }
 
