@@ -36,6 +36,19 @@ Muzzle is a menu-bar agent. It shows an outlined muzzle mark when inactive and a
 
 Use `open "dist/Muzzle.app"` to launch it. Use `open -n "dist/Muzzle.app" --args --debug` for the separate local debug sandbox. Do not use `open -n` for normal launches: that option explicitly asks macOS to create a second instance. Normal launches still focus the existing menu-bar app.
 
+## Create a downloadable DMG
+
+Build the app, then package it as a drag-to-Applications disk image:
+
+```sh
+scripts/build-app.sh
+MUZZLE_VERSION=1.0.0 scripts/package-dmg.sh
+```
+
+This creates `dist/Muzzle-1.0.0-arm64.dmg` on an Apple Silicon Mac (or an `x86_64` filename on an Intel Mac). The app and DMG are deliberately unsigned beyond an ad-hoc local signature, so macOS will require a first-launch confirmation from people who download it.
+
+Pushing a tag such as `v1.0.0` runs the **Release DMG** GitHub Actions workflow. It builds Apple Silicon and Intel DMGs and creates a GitHub Release containing both downloads. The workflow is not triggered by normal commits, so an unpublished change never replaces a released download.
+
 Muzzle ignores direct quit requests such as Command-Q while protection is active. When inactive, its menu includes **Quit Muzzle**. In normal mode, it sends a fresh six-digit session code to Poke each time protection starts (or when it reopens an already-active session). Choose **End protection with key…** and supply that code to remove its hosts-file entries; Muzzle then remains open as an inactive menu-bar icon, ready to start again. It does not install itself as a login item. If Poke delivery fails, protection remains active and the error explains how to fix the delivery configuration. Force-quitting it in Activity Monitor stops the app but deliberately leaves the current hosts-file blocks in place.
 
 Before blocking the first website, choose how many bypasses the session permits: 0, 1, 2, or 3 (default: 1). While protection is active and an allowance remains, choose **Bypass…** from the menu-bar menu and enter any positive whole number of minutes. Muzzle consumes one allowance, removes the block temporarily, and restores it automatically when the bypass ends. In normal mode, untimed sessions send Poke a `bypass` event with the selected number of minutes; timed sessions keep bypasses local. Debug-mode bypasses are always local. Quit remains unavailable for the whole bypass.
