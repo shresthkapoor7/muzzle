@@ -52,17 +52,19 @@ private struct ManagementView: View {
     @State private var didSendPokeTest = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            header
-            if !isDebugMode {
-                pokeAPIKeyPanel
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                if !isDebugMode {
+                    pokeAPIKeyPanel
+                }
+                setupPanel
+                blockedList
+                footer
             }
-            setupPanel
-            blockedList
-            Spacer(minLength: 0)
-            footer
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
         }
-        .padding(24)
         .frame(minWidth: 460, minHeight: 460)
         .alert(
             "Couldn’t update website blocking",
@@ -92,7 +94,7 @@ private struct ManagementView: View {
     }
 
     private var pokeAPIKeyPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Poke API key")
                     .font(.system(size: 15, weight: .semibold))
@@ -140,7 +142,7 @@ private struct ManagementView: View {
                 }
             }
         }
-        .padding(18)
+        .padding(16)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
@@ -252,7 +254,7 @@ private struct ManagementView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
         }
-        .padding(18)
+        .padding(16)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
@@ -280,7 +282,7 @@ private struct ManagementView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity, minHeight: 170)
+                .frame(maxWidth: .infinity, minHeight: 150)
                 .background(Color(nsColor: .controlBackgroundColor))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
