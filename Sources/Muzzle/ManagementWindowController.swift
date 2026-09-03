@@ -109,6 +109,10 @@ private struct ManagementView: View {
                 .accessibilityLabel("Poke API key")
                 .disabled(isEditingPokeAPIKeyDisabled)
 
+                Button("Paste key", action: pastePokeAPIKey)
+                    .disabled(isEditingPokeAPIKeyDisabled)
+                    .accessibilityHint("Pastes the Poke API key from the clipboard")
+
                 Button(pokeAPIKeyStore.isConfigured ? "Replace" : "Save", action: savePokeAPIKey)
                     .buttonStyle(.borderedProminent)
                     .disabled(pokeAPIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isEditingPokeAPIKeyDisabled)
@@ -366,6 +370,14 @@ private struct ManagementView: View {
         } catch {
             pokeAPIKeyError = error.localizedDescription
         }
+    }
+
+    private func pastePokeAPIKey() {
+        guard let key = NSPasteboard.general.string(forType: .string) else {
+            pokeAPIKeyError = "Copy your Poke API key, then choose Paste key."
+            return
+        }
+        pokeAPIKeyInput = key.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func removePokeAPIKey() {
