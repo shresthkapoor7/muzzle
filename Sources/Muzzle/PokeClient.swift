@@ -17,7 +17,7 @@ struct PokeClient {
         var errorDescription: String? {
             switch self {
             case .missingAPIKey:
-                "Poke delivery is not configured. Add your bearer token to POKE_API_KEY in Muzzle’s .env file."
+                "Poke delivery is not configured. Add your bearer token in Muzzle’s Poke API key field."
             case .invalidResponse:
                 "Poke did not return a valid response."
             case .rejected(let statusCode):
@@ -31,13 +31,30 @@ struct PokeClient {
         workingOn: String? = nil,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
+        send(
+            LockKeyPayload(key: key, date: currentDateString(), workingOn: workingOn),
+            completion: completion
+        )
+    }
+
+    func sendBypass(minutes: Int, completion: @escaping (Result<Void, Error>) -> Void) {
+        send(BypassPayload(minutes: minutes, date: currentDateString()), completion: completion)
+    }
+
+    func sendConnectionTest(completion: @escaping (Result<Void, Error>) -> Void) {
+        send(ConnectionTestPayload(date: currentDateString()), completion: completion)
+    }
+
+    private func send<Payload: Encodable>(
+        _ payload: Payload,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
         let completionBox = CompletionBox(completion)
         guard let apiKey = loadAPIKey() else {
             completionBox.call(.failure(PokeError.missingAPIKey))
             return
         }
 
-        let payload = LockKeyPayload(key: key, date: currentDateString(), workingOn: workingOn)
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -45,42 +62,6 @@ struct PokeClient {
 
         do {
             request.httpBody = try JSONEncoder().encode(payload)
-        } catch {
-            completionBox.call(.failure(error))
-            return
-        }
-
-        URLSession.shared.dataTask(with: request) { _, response, error in
-            if let error {
-                completionBox.call(.failure(error))
-                return
-            }
-            guard let response = response as? HTTPURLResponse else {
-                completionBox.call(.failure(PokeError.invalidResponse))
-                return
-            }
-            guard (200...299).contains(response.statusCode) else {
-                completionBox.call(.failure(PokeError.rejected(response.statusCode)))
-                return
-            }
-            completionBox.call(.success(()))
-        }.resume()
-    }
-
-    func sendBypass(minutes: Int, completion: @escaping (Result<Void, Error>) -> Void) {
-        let completionBox = CompletionBox(completion)
-        guard let apiKey = loadAPIKey() else {
-            completionBox.call(.failure(PokeError.missingAPIKey))
-            return
-        }
-
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        do {
-            request.httpBody = try JSONEncoder().encode(BypassPayload(minutes: minutes, date: currentDateString()))
         } catch {
             completionBox.call(.failure(error))
             return
@@ -146,5 +127,11 @@ private struct LockKeyPayload: Encodable {
 private struct BypassPayload: Encodable {
     let event = "bypass"
     let minutes: Int
+    let date: String
+}
+
+private struct ConnectionTestPayload: Encodable {
+    let event = "connection_test"
+    let message = "Muzzle successfully connected to Poke."
     let date: String
 }

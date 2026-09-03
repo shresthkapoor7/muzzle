@@ -74,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 isDebugMode: isDebugMode,
                 pokeAPIKeyStore: pokeAPIKeyStore,
                 onProtectionStarted: { [weak self] in self?.startProtectionSession() },
+                onTestPoke: { [weak self] completion in self?.sendPokeConnectionTest(completion: completion) },
                 onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() }
             )
         }
@@ -90,6 +91,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.blocker.present(error: error)
             }
         }
+    }
+
+    private func sendPokeConnectionTest(completion: @escaping (Result<Void, Error>) -> Void) {
+        pokeClient.sendConnectionTest(completion: completion)
     }
 
     private func startProtectionSession() {

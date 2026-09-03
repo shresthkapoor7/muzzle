@@ -8,6 +8,7 @@ final class ManagementWindowController: NSWindowController {
         isDebugMode: Bool,
         pokeAPIKeyStore: PokeAPIKeyStore,
         onProtectionStarted: @escaping () -> Void,
+        onTestPoke: @escaping (@escaping (Result<Void, Error>) -> Void) -> Void,
         onRetrySystemUpdate: @escaping () -> Void
     ) {
         let rootView = ManagementView(
@@ -15,6 +16,7 @@ final class ManagementWindowController: NSWindowController {
             isDebugMode: isDebugMode,
             pokeAPIKeyStore: pokeAPIKeyStore,
             onProtectionStarted: onProtectionStarted,
+            onTestPoke: onTestPoke,
             onRetrySystemUpdate: onRetrySystemUpdate
         )
         let hostingController = NSHostingController(rootView: rootView)
@@ -38,6 +40,7 @@ private struct ManagementView: View {
     let isDebugMode: Bool
     @ObservedObject var pokeAPIKeyStore: PokeAPIKeyStore
     let onProtectionStarted: () -> Void
+    let onTestPoke: (@escaping (Result<Void, Error>) -> Void) -> Void
     let onRetrySystemUpdate: () -> Void
     @State private var domainInput = ""
     @State private var blockMode = BlockMode.timed
@@ -45,6 +48,8 @@ private struct ManagementView: View {
     @State private var allowedBypasses = 1
     @State private var pokeAPIKeyInput = ""
     @State private var pokeAPIKeyError: String?
+    @State private var isTestingPoke = false
+    @State private var didSendPokeTest = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -123,6 +128,17 @@ private struct ManagementView: View {
                 }
             }
 
+            HStack(spacing: 8) {
+                Button(isTestingPoke ? "Sending…" : "Test Poke", action: testPoke)
+                    .disabled(isTestingPoke || isEditingPokeAPIKeyDisabled || !canTestPoke)
+                    .accessibilityHint("Sends a test message to Poke using this API key")
+
+                if didSendPokeTest {
+                    Label("Test message sent", systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.green)
+                }
+            }
         }
         .padding(18)
         .background(Color(nsColor: .controlBackgroundColor))
@@ -363,6 +379,10 @@ private struct ManagementView: View {
         !blocker.blockedDomains.isEmpty && !blocker.isTimedSession
     }
 
+    private var canTestPoke: Bool {
+        pokeAPIKeyStore.isConfigured || !pokeAPIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private func savePokeAPIKey() {
         do {
             try pokeAPIKeyStore.save(pokeAPIKeyInput)
@@ -378,6 +398,38 @@ private struct ManagementView: View {
             return
         }
         pokeAPIKeyInput = key.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func testPoke() {
+        let enteredKey = pokeAPIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !enteredKey.isEmpty {
+            do {
+                try pokeAPIKeyStore.save(enteredKey)
+                pokeAPIKeyInput = ""
+            } catch {
+                pokeAPIKeyError = error.localizedDescription
+                return
+            }
+        }
+
+        guard pokeAPIKeyStore.isConfigured else {
+            pokeAPIKeyError = "Paste or enter a Poke API key before testing it."
+            return
+        }
+
+        didSendPokeTest = false
+        isTestingPoke = true
+        onTestPoke { result in
+            DispatchQueue.main.async {
+                isTestingPoke = false
+                switch result {
+                case .success:
+                    didSendPokeTest = true
+                case let .failure(error):
+                    pokeAPIKeyError = error.localizedDescription
+                }
+            }
+        }
     }
 
     private func removePokeAPIKey() {
