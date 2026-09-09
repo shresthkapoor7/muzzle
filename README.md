@@ -54,6 +54,10 @@ Before blocking the first website, choose how many bypasses the session permits:
 
 ## How blocking works
 
+### Extra bypass approvals
+
+During normal protection, choose **Request extra bypass from Poke…**, then **Enter bypass approval code…** with the code Poke shares. The `bypass_request` event asks Poke to approve one extra bypass; delivery alone does not grant it. Codes expire after 15 minutes, permit five attempts, and can be redeemed once. A new request replaces the previous code; restarting the app invalidates it. The allowance is capped at three. This does not end protection or change the session unlock key. Debug mode never sends these requests.
+
 Muzzle adds `127.0.0.1` and `::1` entries for each domain and its `www` subdomain between clearly labeled markers in `/etc/hosts`. It never replaces the rest of that file. It also resolves the domain’s current public IPv4/IPv6 addresses and loads an isolated macOS PF anchor that blocks outgoing connections to them.
 
 Changing protection updates both system components in one administrator-authorized operation, so adding a website or ending protection results in one macOS permission request rather than separate requests for the firewall and hosts file. When a timed block reaches its deadline, macOS may ask for approval to remove those system-level rules. A permanently authorized root helper is a separate signed, privileged-service architecture; this local ad-hoc build deliberately does not install one.
