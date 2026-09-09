@@ -80,6 +80,11 @@ final class StatusItemController: NSObject {
         let status = NSMenuItem(title: blocker.statusMessage, action: nil, keyEquivalent: "")
         status.isEnabled = false
         menu.addItem(status)
+        if let date = blocker.bypassRenewalDate {
+            let renewal = NSMenuItem(title: "Bypasses renew \(date.formatted(date: .abbreviated, time: .shortened))", action: nil, keyEquivalent: "")
+            renewal.isEnabled = false
+            menu.addItem(renewal)
+        }
         menu.addItem(.separator())
 
         let manageTitle = blocker.blockedDomains.isEmpty ? "Start blocking…" : "Manage protected websites…"

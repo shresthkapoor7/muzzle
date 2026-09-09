@@ -56,6 +56,8 @@ Before blocking the first website, choose how many bypasses the session permits:
 
 ### Extra bypass approvals
 
+The original bypass allowance renews every 24 hours from session creation, including after sleep or relaunch. Unused bypasses do not accumulate, and Poke-approved extras do not increase the daily limit. A zero-bypass session stays at zero. Renewal does not end protection or interrupt a running bypass. The menu shows the next renewal time. Older saved sessions migrate using their remaining count as the daily limit because the original choice was not saved; start a new session to choose a different limit.
+
 When an untimed normal-mode bypass expires, Muzzle sends Poke a `bypass_restoration` event with `state: pending` **before** asking for administrator approval. This tells Poke that access may remain open if the prompt is ignored. A subsequent `restored` or `failed` event reports the result. Expired bypass state survives restarts until restoration succeeds, and **Retry macOS permission…** retries a failed restoration. Timed and debug sessions remain local. Notification delivery requires connectivity and a working Poke token; it cannot replace macOS authorization.
 
 During normal protection, choose **Request extra bypass from Poke…**, then **Enter bypass approval code…** with the code Poke shares. The `bypass_request` event asks Poke to approve one extra bypass; delivery alone does not grant it. Codes expire after 15 minutes, permit five attempts, and can be redeemed once. A new request replaces the previous code; restarting the app invalidates it. The allowance is capped at three. This does not end protection or change the session unlock key. Debug mode never sends these requests.
