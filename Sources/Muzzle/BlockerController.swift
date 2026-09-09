@@ -32,13 +32,14 @@ final class BlockerController: ObservableObject {
     private let timedSessionStore: TimedSessionStore
     private let bypassSessionStore: BypassSessionStore
     private let bypassAllowanceStore: BypassAllowanceStore
-    private let systemConfigurationController: SystemConfigurationController
+    private let applyConfiguration: ([String]) throws -> Void
     private var expiryTimer: Timer?
     private var progressTimer: Timer?
     private var bypassTimer: Timer?
     private var needsExpiredSessionCleanup = false
     private var pendingSystemUpdate: PendingSystemUpdate?
     private(set) var sessionID = UUID()
+    var onBypassRestoration: ((BypassRestorationEvent) -> Void)?
 
     var isTimedSession: Bool { timedSessionEndDate != nil }
     var isBypassActive: Bool { bypassEndDate != nil }
@@ -48,16 +49,21 @@ final class BlockerController: ObservableObject {
     var needsSystemReconciliation: Bool { !blockedDomains.isEmpty || needsExpiredSessionCleanup }
     var canRetrySystemUpdate: Bool { pendingSystemUpdate != nil }
 
-    init(isDebugMode: Bool = false) {
+    init(
+        isDebugMode: Bool = false,
+        applicationSupportDirectoryName: String? = nil,
+        applyConfiguration: (([String]) throws -> Void)? = nil
+    ) {
         let profile: BlockingProfile = isDebugMode ? .debug : .normal
+        let directory = applicationSupportDirectoryName ?? profile.applicationSupportDirectoryName
         domainStore = DomainStore(
-            applicationSupportDirectoryName: profile.applicationSupportDirectoryName,
-            migratesLegacyStore: !isDebugMode
+            applicationSupportDirectoryName: directory,
+            migratesLegacyStore: !isDebugMode && applicationSupportDirectoryName == nil
         )
-        timedSessionStore = TimedSessionStore(applicationSupportDirectoryName: profile.applicationSupportDirectoryName)
-        bypassSessionStore = BypassSessionStore(applicationSupportDirectoryName: profile.applicationSupportDirectoryName)
-        bypassAllowanceStore = BypassAllowanceStore(applicationSupportDirectoryName: profile.applicationSupportDirectoryName)
-        systemConfigurationController = SystemConfigurationController(profile: profile)
+        timedSessionStore = TimedSessionStore(applicationSupportDirectoryName: directory)
+        bypassSessionStore = BypassSessionStore(applicationSupportDirectoryName: directory)
+        bypassAllowanceStore = BypassAllowanceStore(applicationSupportDirectoryName: directory)
+        self.applyConfiguration = applyConfiguration ?? SystemConfigurationController(profile: profile).apply
     }
 
     func load() throws {
@@ -94,12 +100,7 @@ final class BlockerController: ObservableObject {
             try bypassSessionStore.clear()
             try bypassAllowanceStore.clear()
         } else {
-            if let bypassEndDate, bypassEndDate <= Date() {
-                self.bypassSessionStartDate = nil
-                self.bypassEndDate = nil
-                self.bypassProgress = 0
-                try bypassSessionStore.clear()
-            }
+            // Keep expired bypasses until restoring the system rules succeeds.
             let defaultAllowance = bypassEndDate == nil ? 1 : 0
             remainingBypasses = min(max(storedBypassAllowance ?? defaultAllowance, 0), 3)
         }
@@ -158,6 +159,9 @@ final class BlockerController: ObservableObject {
                 revertingTo: previousState
             )
             pendingSystemUpdate = nil
+            if let bypassEndDate, bypassEndDate <= Date() {
+                try restoreExpiredBypass()
+            }
         } catch {
             present(error: error)
         }
@@ -168,12 +172,14 @@ final class BlockerController: ObservableObject {
         defer { isApplying = false }
 
         if needsExpiredSessionCleanup {
-            try systemConfigurationController.apply([])
+            try applyConfiguration([])
             needsExpiredSessionCleanup = false
+        } else if let bypassEndDate, bypassEndDate <= Date() {
+            try restoreExpiredBypass()
         } else if isBypassActive {
-            try systemConfigurationController.apply([])
+            try applyConfiguration([])
         } else {
-            try systemConfigurationController.apply(blockedDomains)
+            try applyConfiguration(blockedDomains)
         }
         refreshStatus()
     }
@@ -283,6 +289,9 @@ final class BlockerController: ObservableObject {
         let previousState = currentSessionState
         let outcome = pendingSystemUpdate.outcome
         var targetState = pendingSystemUpdate.state
+        let restoringBypass = bypassEndDate.map { $0 <= Date() } == true
+            && targetState.bypassSession == nil && !targetState.domains.isEmpty
+        if restoringBypass { onBypassRestoration?(.pending) }
         if case let .bypassStarted(minutes, _) = pendingSystemUpdate.outcome,
            let durationSeconds = DurationValidator.seconds(for: minutes) {
             let startDate = Date()
@@ -319,8 +328,10 @@ final class BlockerController: ObservableObject {
             refreshStatus()
             self.pendingSystemUpdate = nil
             clearError()
+            if restoringBypass, !targetState.domains.isEmpty { onBypassRestoration?(.restored) }
             return targetState.domains.isEmpty ? .none : outcome
         } catch {
+            if restoringBypass { onBypassRestoration?(.failed) }
             restoreInMemoryState(previousState)
             if didApplyTargetState {
                 do {
@@ -443,7 +454,7 @@ final class BlockerController: ObservableObject {
     }
 
     private func applySystemState(_ state: SessionState) throws {
-        try systemConfigurationController.apply(state.bypassSession == nil ? state.domains : [])
+        try applyConfiguration(state.bypassSession == nil ? state.domains : [])
     }
 
     private func refreshStatus() {
@@ -455,6 +466,10 @@ final class BlockerController: ObservableObject {
         let count = "Blocking \(blockedDomains.count) \(blockedDomains.count == 1 ? "website" : "websites")"
         let allowance = "\(remainingBypasses) \(remainingBypasses == 1 ? "bypass" : "bypasses") left"
         if let bypassEndDate {
+            if bypassEndDate <= Date() {
+                statusMessage = "Bypass expired. Restore protection using Retry macOS permission. \(allowance)."
+                return
+            }
             statusMessage = "Bypass active until \(formattedTime(bypassEndDate)). \(allowance)."
             return
         }
@@ -555,6 +570,16 @@ final class BlockerController: ObservableObject {
     }
 
     private func expireBypass() {
+        guard !isApplying else { return }
+        do {
+            try restoreExpiredBypass()
+        } catch {
+            present(error: error)
+        }
+    }
+
+    private func restoreExpiredBypass() throws {
+        guard let bypassEndDate, bypassEndDate <= Date() else { return }
         do {
             if let timedSessionEndDate, timedSessionEndDate <= Date() {
                 try endProtection()
@@ -571,6 +596,8 @@ final class BlockerController: ObservableObject {
                 remainingBypasses: remainingBypasses
             )
             pendingSystemUpdate = PendingSystemUpdate(state: restoredState, outcome: .none)
+            // Send before the blocking administrator dialog, including when it is ignored.
+            onBypassRestoration?(.pending)
             isApplying = true
             defer { isApplying = false }
             try applySystemState(restoredState)
@@ -594,8 +621,10 @@ final class BlockerController: ObservableObject {
             scheduleProgressTimer()
             refreshStatus()
             pendingSystemUpdate = nil
+            onBypassRestoration?(.restored)
         } catch {
-            present(error: error)
+            onBypassRestoration?(.failed)
+            throw error
         }
     }
 

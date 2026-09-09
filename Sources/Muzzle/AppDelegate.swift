@@ -36,6 +36,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         NSApp.setActivationPolicy(.accessory)
+        blocker.onBypassRestoration = { [weak self] event in
+            guard let self, !self.isDebugMode, !self.blocker.isTimedSession else { return }
+            self.pokeClient.sendBypassRestoration(event) { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self, case .failure(let error) = result else { return }
+                    self.blocker.present(error: error)
+                }
+            }
+        }
 
         do {
             try blocker.load()

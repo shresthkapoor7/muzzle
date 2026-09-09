@@ -56,6 +56,8 @@ Before blocking the first website, choose how many bypasses the session permits:
 
 ### Extra bypass approvals
 
+When an untimed normal-mode bypass expires, Muzzle sends Poke a `bypass_restoration` event with `state: pending` **before** asking for administrator approval. This tells Poke that access may remain open if the prompt is ignored. A subsequent `restored` or `failed` event reports the result. Expired bypass state survives restarts until restoration succeeds, and **Retry macOS permission…** retries a failed restoration. Timed and debug sessions remain local. Notification delivery requires connectivity and a working Poke token; it cannot replace macOS authorization.
+
 During normal protection, choose **Request extra bypass from Poke…**, then **Enter bypass approval code…** with the code Poke shares. The `bypass_request` event asks Poke to approve one extra bypass; delivery alone does not grant it. Codes expire after 15 minutes, permit five attempts, and can be redeemed once. A new request replaces the previous code; restarting the app invalidates it. The allowance is capped at three. This does not end protection or change the session unlock key. Debug mode never sends these requests.
 
 Muzzle adds `127.0.0.1` and `::1` entries for each domain and its `www` subdomain between clearly labeled markers in `/etc/hosts`. It never replaces the rest of that file. It also resolves the domain’s current public IPv4/IPv6 addresses and loads an isolated macOS PF anchor that blocks outgoing connections to them.

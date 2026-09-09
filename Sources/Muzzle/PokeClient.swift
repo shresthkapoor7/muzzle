@@ -52,6 +52,10 @@ struct PokeClient {
         send(BypassRequestPayload(key: code, date: currentDateString()), completion: completion)
     }
 
+    func sendBypassRestoration(_ state: BypassRestorationEvent, completion: @escaping (Result<Void, Error>) -> Void) {
+        send(BypassRestorationPayload(state: state, message: state.message, date: currentDateString(), occurredAt: Date()), completion: completion)
+    }
+
     private func send<Payload: Encodable>(
         _ payload: Payload,
         completion: @escaping (Result<Void, Error>) -> Void
@@ -157,6 +161,19 @@ private struct BypassRequestPayload: Encodable {
     let message = "The user requests one extra Muzzle bypass. Share this one-time key if approved; it expires in 15 minutes. It does not end protection."
     let key: String
     let date: String
+}
+
+private struct BypassRestorationPayload: Encodable {
+    let event = "bypass_restoration"
+    let state: BypassRestorationEvent
+    let message: String
+    let date: String
+    let occurredAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case event, state, message, date
+        case occurredAt = "occurred_at"
+    }
 }
 
 private struct PokeDeliveryResponse: Decodable {
