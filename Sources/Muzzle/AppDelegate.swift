@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isSecondaryInstance = false
     private var isQuitAuthorized = false
     private let isDebugMode = DebugMode.isEnabled
+    private var isCheckingForUpdates = false
+    private var updateTimer: Timer?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         guard !isDebugMode else { return }
@@ -67,8 +69,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onRequestBypass: { [weak self] in self?.requestExtraBypass() },
             onRedeemBypass: { [weak self] in self?.redeemExtraBypass() },
             onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() },
-            onQuit: { [weak self] in self?.quitWhenInactive() }
+            onQuit: { [weak self] in self?.quitWhenInactive() },
+            onCheckForUpdates: { [weak self] in self?.checkForUpdates(manual: true) }
         )
+
+        if !isDebugMode {
+            checkForUpdates(manual: false)
+            updateTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.checkForUpdates(manual: false) }
+            }
+        }
 
         if !isDebugMode, !blocker.blockedDomains.isEmpty, !blocker.isTimedSession, !blocker.isBypassActive {
             DispatchQueue.main.async { [weak self] in
@@ -79,6 +89,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         (isSecondaryInstance || isQuitAuthorized) ? .terminateNow : .terminateCancel
+    }
+
+    private func checkForUpdates(manual: Bool) {
+        guard !isCheckingForUpdates else { return }
+        let defaults = UserDefaults.standard
+        let lastCheckKey = "MuzzleLastSuccessfulUpdateCheck"
+        if !manual, let last = defaults.object(forKey: lastCheckKey) as? Date,
+           Date().timeIntervalSince(last) < 86400 { return }
+        isCheckingForUpdates = true
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        Task { @MainActor in
+            defer { isCheckingForUpdates = false }
+            do {
+                let update = try await UpdateChecker().check(currentVersion: version)
+                if !isDebugMode { defaults.set(Date(), forKey: lastCheckKey) }
+                guard manual || update != nil else { return }
+                let alert = NSAlert()
+                if let update {
+                    alert.messageText = "Muzzle \(update.version) is available"
+                    alert.informativeText = "You’re running \(version). Download the DMG, then install it when your protection session has ended."
+                    alert.addButton(withTitle: "Download Update")
+                    alert.addButton(withTitle: "Later")
+                    alert.addButton(withTitle: "Release Notes")
+                    switch alert.runModal() {
+                    case .alertFirstButtonReturn: NSWorkspace.shared.open(update.downloadURL)
+                    case .alertThirdButtonReturn: NSWorkspace.shared.open(update.releaseURL)
+                    default: break
+                    }
+                } else {
+                    alert.messageText = "Muzzle is up to date"
+                    alert.informativeText = "No newer stable release is available for version \(version)."
+                    alert.runModal()
+                }
+            } catch {
+                guard manual else { return }
+                let alert = NSAlert()
+                alert.messageText = "Couldn’t check for updates"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+            }
+        }
     }
 
     private func showManagementWindow() {

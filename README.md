@@ -34,6 +34,10 @@ Use `open "dist/Muzzle.app"` to launch it. Use `open -n "dist/Muzzle.app" --args
 
 ## Create a downloadable DMG
 
+Muzzle checks this repository’s latest stable **GitHub Release** on launch and daily while running. **Check for Updates…** runs a manual check. A newer version offers the matching Apple Silicon or Intel DMG and release notes. Downloading does not stop protection; installation is manual after the session ends. Debug mode checks only on demand. Failed automatic checks stay quiet and retry on the next hourly check. GitHub Releases is the update source because that is where this project publishes DMGs; GitHub Packages is not used.
+
+Build releases with `MUZZLE_VERSION=v1.2.3 scripts/build-app.sh` so the installed bundle carries the release version. The tag workflow supplies this automatically. Local builds default to version `1.0`.
+
 Build the app, then package it as a drag-to-Applications disk image. DMG layout generation needs Python 3.10 or later:
 
 ```sh

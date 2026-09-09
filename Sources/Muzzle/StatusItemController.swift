@@ -12,6 +12,7 @@ final class StatusItemController: NSObject {
     private let onRedeemBypass: () -> Void
     private let onRetrySystemUpdate: () -> Void
     private let onQuit: () -> Void
+    private let onCheckForUpdates: () -> Void
     private let statusItem: NSStatusItem
     private var blockerObservation: AnyCancellable?
 
@@ -24,7 +25,8 @@ final class StatusItemController: NSObject {
         onRequestBypass: @escaping () -> Void,
         onRedeemBypass: @escaping () -> Void,
         onRetrySystemUpdate: @escaping () -> Void,
-        onQuit: @escaping () -> Void
+        onQuit: @escaping () -> Void,
+        onCheckForUpdates: @escaping () -> Void
     ) {
         self.blocker = blocker
         self.isDebugMode = isDebugMode
@@ -35,6 +37,7 @@ final class StatusItemController: NSObject {
         self.onRedeemBypass = onRedeemBypass
         self.onRetrySystemUpdate = onRetrySystemUpdate
         self.onQuit = onQuit
+        self.onCheckForUpdates = onCheckForUpdates
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
@@ -113,6 +116,8 @@ final class StatusItemController: NSObject {
             }
         }
 
+        menu.addItem(.separator())
+        menu.addItem(makeItem("Check for Updates…", action: #selector(checkForUpdates)))
         statusItem.menu = menu
     }
 
@@ -129,4 +134,5 @@ final class StatusItemController: NSObject {
     @objc private func redeemBypass() { onRedeemBypass() }
     @objc private func retrySystemUpdate() { onRetrySystemUpdate() }
     @objc private func quit() { onQuit() }
+    @objc private func checkForUpdates() { onCheckForUpdates() }
 }
