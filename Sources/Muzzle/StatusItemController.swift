@@ -77,6 +77,10 @@ final class StatusItemController: NSObject {
     }
 
     private func rebuildMenu() {
+        statusItem.menu = makeMenu()
+    }
+
+    func makeMenu() -> NSMenu {
         let menu = NSMenu()
 
         let title = NSMenuItem(title: isDebugMode ? "Muzzle (Debug Mode)" : "Muzzle", action: nil, keyEquivalent: "")
@@ -121,13 +125,16 @@ final class StatusItemController: NSObject {
 
         menu.addItem(.separator())
         if blocker.usesPrivilegedService {
-            menu.addItem(makeItem("Install / Update Blocking Service…", action: #selector(installService)))
-            if !blocker.canQuit {
-                menu.addItem(makeItem("Quit Muzzle (blocking continues)", action: #selector(quit)))
+            if blocker.serviceConnected {
+                let serviceStatus = NSMenuItem(title: "Blocking service: running", action: nil, keyEquivalent: "")
+                serviceStatus.isEnabled = false
+                menu.addItem(serviceStatus)
+            } else {
+                menu.addItem(makeItem("Set Up Blocking Service…", action: #selector(installService)))
             }
         }
         menu.addItem(makeItem("Check for Updates…", action: #selector(checkForUpdates)))
-        statusItem.menu = menu
+        return menu
     }
 
     private func makeItem(_ title: String, action: Selector) -> NSMenuItem {

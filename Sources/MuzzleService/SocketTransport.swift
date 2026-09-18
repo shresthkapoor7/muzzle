@@ -29,7 +29,7 @@ public enum SocketTransport {
         while data.count <= maxBytes {
             let count = Darwin.recv(fd, &buffer, buffer.count, 0)
             if count < 0 && errno == EINTR { continue }
-            guard count > 0 else { throw ServiceFailure("The blocking service did not respond. Install or update it from the Muzzle menu.") }
+            guard count > 0 else { throw ServiceFailure("The blocking service did not respond. Choose Set Up Blocking Service from the Muzzle menu.") }
             if let newline = buffer[..<count].firstIndex(of: 10) {
                 data.append(contentsOf: buffer[..<newline])
                 guard data.count <= maxBytes else { break }
@@ -64,7 +64,7 @@ public enum SocketTransport {
         let connected = withUnsafePointer(to: &address) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
         }
-        guard connected == 0 else { throw ServiceFailure("Install or update the blocking service from the Muzzle menu. Protection cannot be changed until it is available.") }
+        guard connected == 0 else { throw ServiceFailure("Choose Set Up Blocking Service from the Muzzle menu. Protection cannot be changed until it is available.") }
         var uid: uid_t = 0; var gid: gid_t = 0
         guard getpeereid(fd, &uid, &gid) == 0, uid == 0 else { throw ServiceFailure("The blocking service is not running as root.") }
         try write(ServiceRequest(command), to: fd)

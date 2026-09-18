@@ -782,7 +782,7 @@ final class BlockerController: ObservableObject {
                     guard generation == self.serviceResponseGeneration else { return }
                     self.serviceConnected = false
                     self.serviceEnforced = false
-                    self.statusMessage = "Blocking service unavailable. Install or update it from the Muzzle menu."
+                    self.statusMessage = "Blocking service unavailable. Choose Set Up Blocking Service from the Muzzle menu."
                 }
             }
         }
