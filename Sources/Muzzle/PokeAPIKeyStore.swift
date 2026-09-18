@@ -8,16 +8,16 @@ final class PokeAPIKeyStore: ObservableObject {
 
     @Published private(set) var isConfigured: Bool
     private var cachedKey: String?
-    private let readKey: () -> String?
-    private let writeKey: (String) throws -> Void
-    private let deleteKey: () throws -> Void
+    private let readKey: @MainActor () -> String?
+    private let writeKey: @MainActor (String) throws -> Void
+    private let deleteKey: @MainActor () throws -> Void
 
     convenience init() {
         self.init(readKey: Self.loadKey, writeKey: Self.saveKey, deleteKey: Self.removeKey)
     }
 
-    init(readKey: @escaping () -> String?, writeKey: @escaping (String) throws -> Void,
-         deleteKey: @escaping () throws -> Void) {
+    init(readKey: @escaping @MainActor () -> String?, writeKey: @escaping @MainActor (String) throws -> Void,
+         deleteKey: @escaping @MainActor () throws -> Void) {
         self.readKey = readKey
         self.writeKey = writeKey
         self.deleteKey = deleteKey

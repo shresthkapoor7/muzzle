@@ -3,6 +3,18 @@ import XCTest
 
 final class PokeAPIKeyStoreTests: XCTestCase {
     @MainActor
+    func testExplicitlyMainActorCallbacks() throws {
+        let backend = MainActorKeyBackend()
+        let store = PokeAPIKeyStore(readKey: backend.read, writeKey: backend.write, deleteKey: backend.remove)
+        XCTAssertEqual(store.apiKey(), "initial-token")
+        try store.save("updated-token")
+        XCTAssertEqual(backend.key, "updated-token")
+        try store.remove()
+        XCTAssertNil(backend.key)
+        XCTAssertFalse(store.isConfigured)
+    }
+
+    @MainActor
     func testConfigurationAndRepeatedSendsShareOneKeychainRead() {
         var reads = 0
         let store = PokeAPIKeyStore(readKey: { reads += 1; return "test-token" },
@@ -63,4 +75,12 @@ final class PokeAPIKeyStoreTests: XCTestCase {
         XCTAssertEqual(store.apiKey(), "authorized-token")
         XCTAssertEqual(reads, 2)
     }
+}
+
+@MainActor
+private final class MainActorKeyBackend {
+    var key: String? = "initial-token"
+    func read() -> String? { key }
+    func write(_ value: String) throws { key = value }
+    func remove() throws { key = nil }
 }
