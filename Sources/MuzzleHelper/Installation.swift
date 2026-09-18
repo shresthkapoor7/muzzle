@@ -15,8 +15,22 @@ enum Installation {
         guard geteuid() == 0, ownerUID >= 501, let account = getpwuid(ownerUID) else {
             throw ServiceFailure("Install the service as administrator for a normal macOS user.")
         }
-        let app = URL(fileURLWithPath: appPath).standardizedFileURL
-        guard app.pathExtension == "app" else { throw ServiceFailure("Choose a built Muzzle.app bundle.") }
+        let sourceApp = URL(fileURLWithPath: appPath).standardizedFileURL
+        guard sourceApp.pathExtension == "app" else { throw ServiceFailure("Choose a built Muzzle.app bundle.") }
+        // Validate a root-owned snapshot, never a bundle the caller can replace
+        // between validation and installation. Partial/inconsistent copies fail validation.
+        try RootFiles.directory(ServicePaths.directory)
+        let staging = URL(fileURLWithPath: ServicePaths.directory).appendingPathComponent("install-" + UUID().uuidString)
+        try RootFiles.directory(staging.path)
+        defer { try? FileManager.default.removeItem(at: staging) }
+        let app = staging.appendingPathComponent("Muzzle.app")
+        try FileManager.default.copyItem(at: sourceApp, to: app)
+        // Do not let a copied symlink redirect nested-code validation back into
+        // caller-writable storage outside the protected staging directory.
+        for relative in ["", "Contents", "Contents/Library", "Contents/Library/HelperTools"] {
+            try RootFiles.check(app.appendingPathComponent(relative).path, directory: true)
+        }
+        try RootFiles.check(app.appendingPathComponent("Contents/Library/HelperTools/MuzzleHelper").path)
         var code: SecStaticCode?
         guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess, let code,
               SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSCheckNestedCode | kSecCSStrictValidate), nil) == errSecSuccess else {
@@ -61,6 +75,10 @@ enum Installation {
         let source = app.appendingPathComponent("Contents/Library/HelperTools/MuzzleHelper")
         let sourceInfo = try source.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
         guard sourceInfo.isRegularFile == true, sourceInfo.isSymbolicLink != true else { throw ServiceFailure("The packaged helper is missing or invalid.") }
+        let helperIdentity = try HelperSignature.identity(of: source)
+        let stagedHelper = staging.appendingPathComponent("validated-helper")
+        try RootFiles.write(try Data(contentsOf: source), to: stagedHelper.path, mode: 0o700)
+        try HelperSignature.validate(stagedHelper, identity: helperIdentity)
         try RootFiles.directory("/Library/PrivilegedHelperTools", mode: 0o755)
         try RootFiles.directory("/Library/LaunchDaemons", mode: 0o755)
         let plist: [String: Any] = ["Label": ServicePaths.label, "ProgramArguments": [ServicePaths.executable],
@@ -68,7 +86,7 @@ enum Installation {
             "ThrottleInterval": 5, "ProcessType": "Background"]
         // Validate everything before stopping an old helper; saved sessions and
         // installed rules survive the short service update window.
-        let binary = try Data(contentsOf: source)
+        let binary = try Data(contentsOf: stagedHelper)
         let plistData = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         let files: [(String, Data, Int)] = [(ServicePaths.executable, binary, 0o755),
             (configPath, try JSONEncoder().encode(config), 0o600), (ServicePaths.plist, plistData, 0o644)]
@@ -94,6 +112,34 @@ enum Installation {
                 throw ServiceFailure("Service installation and rollback failed. Existing rules and session data were preserved; administrator repair is required.")
             }
             throw installError
+        }
+    }
+}
+
+enum HelperSignature {
+    static func identity(of url: URL) throws -> SecRequirement {
+        var code: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess, let code,
+              SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), nil) == errSecSuccess else {
+            throw ServiceFailure("The nested helper signature is invalid.")
+        }
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let values = info as? [String: Any], let hash = values[kSecCodeInfoUnique as String] as? Data else {
+            throw ServiceFailure("Could not capture the nested helper identity.")
+        }
+        let hex = hash.map { String(format: "%02x", $0) }.joined()
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString("cdhash H\"\(hex)\"" as CFString, [], &requirement) == errSecSuccess,
+              let requirement else { throw ServiceFailure("Could not pin the nested helper identity.") }
+        return requirement
+    }
+
+    static func validate(_ url: URL, identity: SecRequirement) throws {
+        var code: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess, let code,
+              SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate), identity) == errSecSuccess else {
+            throw ServiceFailure("The staged helper does not match the validated nested helper.")
         }
     }
 }

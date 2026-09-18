@@ -18,7 +18,23 @@ final class SecurityTests: XCTestCase {
 
     func testRejectsOversizedMessagesAndSocketPaths() throws {
         XCTAssertThrowsError(try SocketTransport.address(String(repeating: "a", count: 200)))
-        XCTAssertThrowsError(try SocketTransport.write(String(repeating: "a", count: SocketTransport.maxBytes), to: -1))
+        var sockets: [Int32] = [0, 0]
+        guard socketpair(AF_UNIX, SOCK_STREAM, 0, &sockets) == 0 else { return XCTFail("Could not create socket pair") }
+        defer { close(sockets[0]); close(sockets[1]) }
+        sockets.forEach { SocketTransport.configure($0, timeout: 1) }
+        XCTAssertThrowsError(try SocketTransport.write(String(repeating: "a", count: SocketTransport.maxBytes), to: sockets[0])) {
+            XCTAssertEqual($0.localizedDescription, "Service message exceeds the size limit.")
+        }
+    }
+
+    func testStagedHelperMustMatchCapturedNestedIdentity() throws {
+        let original = URL(fileURLWithPath: "/usr/bin/true")
+        let replacement = URL(fileURLWithPath: "/usr/bin/false")
+        let identity = try HelperSignature.identity(of: original)
+        XCTAssertNoThrow(try HelperSignature.validate(original, identity: identity))
+        XCTAssertThrowsError(try HelperSignature.validate(replacement, identity: identity)) {
+            XCTAssertEqual($0.localizedDescription, "The staged helper does not match the validated nested helper.")
+        }
     }
 
     func testRejectsWrongUIDAndUnapprovedCode() throws {

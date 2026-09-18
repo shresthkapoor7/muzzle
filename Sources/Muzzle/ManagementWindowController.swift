@@ -345,17 +345,23 @@ private struct ManagementView: View {
             pokeAPIKeyError = "Save a Poke API key before starting an untimed lock, so Muzzle can send the unlock key to Poke."
             return
         }
-        blocker.add(
-            domainInput,
-            timedDurationMinutes: wasInactive && blockMode == .timed ? timedMinutes : nil,
-            allowedBypasses: wasInactive ? allowedBypasses : 1
-        )
-        if wasInactive, !blocker.blockedDomains.isEmpty {
-            if blockMode == .untilEnded {
-                onProtectionStarted()
+        let domain = domainInput
+        let minutes = wasInactive && blockMode == .timed ? timedMinutes : nil
+        let limit = wasInactive ? allowedBypasses : 1
+        let isUntimed = blockMode == .untilEnded
+        Task { @MainActor in
+            await blocker.add(
+                domain,
+                timedDurationMinutes: minutes,
+                allowedBypasses: limit
+            )
+            if wasInactive, !blocker.blockedDomains.isEmpty {
+                if isUntimed {
+                    onProtectionStarted()
+                }
             }
+            if domainInput == domain { domainInput = "" }
         }
-        domainInput = ""
     }
 
     private var timedMinutes: Int? {

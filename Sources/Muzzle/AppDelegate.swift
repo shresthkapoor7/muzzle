@@ -49,13 +49,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        do {
-            try blocker.load()
-            if blocker.needsSystemReconciliation {
-                try blocker.reconcileSystemState()
-            }
-        } catch {
-            blocker.present(error: error)
+        Task { @MainActor in
+            do {
+                try await blocker.load()
+                if blocker.needsSystemReconciliation {
+                    try await blocker.reconcileSystemState()
+                }
+                if !isDebugMode, !blocker.blockedDomains.isEmpty, !blocker.isTimedSession, !blocker.isBypassActive {
+                    requestWorkContextForPokeDelivery()
+                }
+            } catch { blocker.present(error: error) }
         }
 
         if !isDebugMode {
@@ -79,12 +82,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             checkForUpdates(manual: false)
             updateTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
                 Task { @MainActor in self?.checkForUpdates(manual: false) }
-            }
-        }
-
-        if !isDebugMode, !blocker.blockedDomains.isEmpty, !blocker.isTimedSession, !blocker.isBypassActive {
-            DispatchQueue.main.async { [weak self] in
-                self?.requestWorkContextForPokeDelivery()
             }
         }
     }
@@ -183,16 +180,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func retrySystemUpdate() {
-        switch blocker.retryPendingSystemUpdate() {
-        case .none:
-            return
-        case let .protectionStarted(isTimed):
-            if !isDebugMode, !isTimed {
-                startProtectionSession()
-            }
-        case let .bypassStarted(minutes, isTimed):
-            if !isDebugMode, !isTimed {
-                sendBypassToPoke(minutes: minutes)
+        Task { @MainActor in
+            switch await blocker.retryPendingSystemUpdate() {
+            case .none:
+                return
+            case let .protectionStarted(isTimed):
+                if !isDebugMode, !isTimed {
+                    startProtectionSession()
+                }
+            case let .bypassStarted(minutes, isTimed):
+                if !isDebugMode, !isTimed {
+                    sendBypassToPoke(minutes: minutes)
+                }
             }
         }
     }
@@ -235,16 +234,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 continue
             }
 
-            do {
-                try blocker.startBypass(for: minutes)
-                if !isDebugMode, !blocker.isTimedSession {
-                    sendBypassToPoke(minutes: minutes)
+            Task { @MainActor in
+                do {
+                    try await blocker.startBypass(for: minutes)
+                    if !isDebugMode, !blocker.isTimedSession {
+                        sendBypassToPoke(minutes: minutes)
+                    }
+                    return
+                } catch {
+                    blocker.present(error: error)
+                    return
                 }
-                return
-            } catch {
-                blocker.present(error: error)
-                return
             }
+            return
         }
     }
 
@@ -301,10 +303,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         if blocker.usesPrivilegedService {
-            do {
-                try blocker.serviceCommand(.redeemExtra(code: field.stringValue))
-                showBypassMessage("One extra bypass is available.")
-            } catch { blocker.present(error: error); showManagementWindow() }
+            let code = field.stringValue
+            Task { @MainActor in
+                do {
+                    try await blocker.serviceCommand(.redeemExtra(code: code))
+                    showBypassMessage("One extra bypass is available.")
+                } catch { blocker.present(error: error); showManagementWindow() }
+            }
             return
         }
         var request = bypassRequest
@@ -379,10 +384,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func requestEndSession() {
         if isDebugMode {
-            do {
-                try blocker.endProtection()
-            } catch {
-                blocker.present(error: error)
+            Task { @MainActor in
+                do {
+                    try await blocker.endProtection()
+                } catch {
+                    blocker.present(error: error)
+                }
             }
             return
         }
@@ -415,18 +422,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        do {
-            try blocker.endProtection(key: field.stringValue)
-            bypassRequest = nil
-        } catch {
-            blocker.present(error: error)
+        let key = field.stringValue
+        Task { @MainActor in
+            do {
+                try await blocker.endProtection(key: key)
+                bypassRequest = nil
+            } catch {
+                blocker.present(error: error)
+            }
         }
     }
 
     private func installBlockingService() {
         do {
             try BlockingServiceClient.install()
-            try blocker.load()
+            Task { @MainActor in
+                do { try await blocker.load() }
+                catch { blocker.present(error: error); showManagementWindow() }
+            }
         } catch { blocker.present(error: error); showManagementWindow() }
     }
 
@@ -434,9 +447,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             defer { if extraBypass { isRequestingBypass = false } }
             do {
-                let response = try await Task.detached { try BlockingServiceClient.request(command) }.value
-                blocker.acceptServiceResponse(response)
-                if let error = response.error { throw ServiceFailure(error) }
+                try await blocker.serviceCommand(command)
                 if extraBypass { showBypassMessage("Request sent to Poke. Enter the approval code within 15 minutes to add one bypass.") }
             } catch { blocker.present(error: error); showManagementWindow() }
         }

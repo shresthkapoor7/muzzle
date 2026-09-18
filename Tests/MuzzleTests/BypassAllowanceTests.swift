@@ -28,7 +28,7 @@ final class BypassAllowanceTests: XCTestCase {
     }
 
     @MainActor
-    func testRenewalAndExtraGrantPreservePendingBypassConsumption() throws {
+    func testRenewalAndExtraGrantPreservePendingBypassConsumption() async throws {
         let directory = "MuzzleTests-\(UUID().uuidString)"
         let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                appropriateFor: nil, create: true)
@@ -37,41 +37,41 @@ final class BypassAllowanceTests: XCTestCase {
         let blocker = BlockerController(applicationSupportDirectoryName: directory, applyConfiguration: { _ in
             if shouldFail { throw CocoaError(.userCancelled) }
         })
-        try blocker.load()
-        blocker.add("example.com", allowedBypasses: 2)
+        try await blocker.load()
+        await blocker.add("example.com", allowedBypasses: 2)
         shouldFail = true
-        XCTAssertThrowsError(try blocker.startBypass(for: 5))
+        do { try await blocker.startBypass(for: 5); XCTFail("Expected failure") } catch {}
         XCTAssertTrue(blocker.canRetrySystemUpdate)
-        try blocker.renewBypassesIfNeeded(now: try XCTUnwrap(blocker.bypassRenewalDate))
+        try await blocker.renewBypassesIfNeeded(now: try XCTUnwrap(blocker.bypassRenewalDate))
         try blocker.grantExtraBypass()
         XCTAssertEqual(blocker.remainingBypasses, 3)
         XCTAssertThrowsError(try blocker.grantExtraBypass())
         shouldFail = false
-        blocker.retryPendingSystemUpdate()
+        await blocker.retryPendingSystemUpdate()
         XCTAssertTrue(blocker.isBypassActive)
         XCTAssertEqual(blocker.remainingBypasses, 2)
     }
 
     @MainActor
-    func testRenewalKeepsProtectionAndRunningBypassUnchangedAcrossReload() throws {
+    func testRenewalKeepsProtectionAndRunningBypassUnchangedAcrossReload() async throws {
         let directory = "MuzzleTests-\(UUID().uuidString)"
         let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                appropriateFor: nil, create: true)
         defer { try? FileManager.default.removeItem(at: base.appendingPathComponent(directory)) }
         var applied: [[String]] = []
         let blocker = BlockerController(applicationSupportDirectoryName: directory, applyConfiguration: { applied.append($0) })
-        try blocker.load()
-        blocker.add("example.com", allowedBypasses: 2)
-        try blocker.startBypass(for: 5)
+        try await blocker.load()
+        await blocker.add("example.com", allowedBypasses: 2)
+        try await blocker.startBypass(for: 5)
         let deadline = blocker.bypassEndDate
         let count = applied.count
-        try blocker.renewBypassesIfNeeded(now: try XCTUnwrap(blocker.bypassRenewalDate))
+        try await blocker.renewBypassesIfNeeded(now: try XCTUnwrap(blocker.bypassRenewalDate))
         XCTAssertEqual(blocker.remainingBypasses, 2)
         XCTAssertEqual(blocker.bypassEndDate, deadline)
         XCTAssertEqual(blocker.blockedDomains, ["example.com"])
         XCTAssertEqual(applied.count, count)
         let reloaded = BlockerController(applicationSupportDirectoryName: directory, applyConfiguration: { _ in XCTFail("Load must not modify system rules") })
-        try reloaded.load()
+        try await reloaded.load()
         XCTAssertEqual(reloaded.remainingBypasses, 2)
         XCTAssertEqual(reloaded.bypassRenewalDate, blocker.bypassRenewalDate)
     }

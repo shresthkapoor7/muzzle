@@ -4,24 +4,29 @@ import CoreFoundation
 
 final class BypassRestorationTests: XCTestCase {
     @MainActor
-    func testBypassDeadlineFiresWhileTrackingMenu() throws {
+    private func runTrackingMode(_ mode: CFRunLoopMode, seconds: Double) {
+        CFRunLoopRunInMode(mode, seconds, false)
+    }
+
+    @MainActor
+    func testBypassDeadlineFiresWhileTrackingMenu() async throws {
         let fixture = try makeBypassFixture(endsAt: Date().addingTimeInterval(0.1))
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         var applied: [[String]] = []
         let blocker = BlockerController(applicationSupportDirectoryName: fixture.directory.lastPathComponent,
                                         applyConfiguration: { applied.append($0) })
-        try blocker.load()
+        try await blocker.load()
         // Simulate an AppKit menu/modal mode rather than the default run loop.
         let mode = CFRunLoopMode(rawValue: "MuzzleTestTracking" as CFString)
         CFRunLoopAddCommonMode(CFRunLoopGetMain(), mode)
-        CFRunLoopRunInMode(mode, 0.4, false)
+        runTrackingMode(mode, seconds: 0.4)
         XCTAssertEqual(applied, [["example.com"]])
         XCTAssertTrue(blocker.isProtectionEnforced)
         XCTAssertNil(try fixture.store.load())
     }
 
     @MainActor
-    func testDeadlineDuringSystemUpdateIsDeferredInsteadOfDropped() throws {
+    func testDeadlineDuringSystemUpdateIsDeferredInsteadOfDropped() async throws {
         let fixture = try makeBypassFixture(endsAt: Date().addingTimeInterval(0.1))
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let mode = CFRunLoopMode(rawValue: "MuzzleTestTracking" as CFString)
@@ -36,9 +41,9 @@ final class BypassRestorationTests: XCTestCase {
                 XCTAssertEqual(applied, [[]], "Do not start a nested privileged operation")
             }
         })
-        try blocker.load()
-        try blocker.reconcileSystemState()
-        CFRunLoopRunInMode(mode, 1.5, false)
+        try await blocker.load()
+        try await blocker.reconcileSystemState()
+        runTrackingMode(mode, seconds: 1.5)
         XCTAssertEqual(applied, [[], ["example.com"]])
         XCTAssertTrue(blocker.isProtectionEnforced)
         XCTAssertNil(try fixture.store.load())
@@ -54,7 +59,7 @@ final class BypassRestorationTests: XCTestCase {
             attempts += 1
             throw CocoaError(.userCancelled)
         })
-        try blocker.load()
+        try await blocker.load()
         try await Task.sleep(for: .milliseconds(1500))
         XCTAssertEqual(attempts, 1)
         XCTAssertTrue(blocker.canRetrySystemUpdate)
@@ -84,7 +89,7 @@ final class BypassRestorationTests: XCTestCase {
         try bypassStore.save(startedAt: Date().addingTimeInterval(-120), endsAt: Date().addingTimeInterval(-60))
         var applied: [[String]] = []
         let blocker = BlockerController(applicationSupportDirectoryName: directory, applyConfiguration: { applied.append($0) })
-        try blocker.load()
+        try await blocker.load()
         let timeout = Date().addingTimeInterval(2)
         while blocker.isBypassActive && Date() < timeout {
             try await Task.sleep(for: .milliseconds(20))
@@ -95,7 +100,7 @@ final class BypassRestorationTests: XCTestCase {
     }
 
     @MainActor
-    func testFailedAddPersistencePreservesPendingRestoration() throws {
+    func testFailedAddPersistencePreservesPendingRestoration() async throws {
         let directory = "MuzzleTests-\(UUID().uuidString)"
         let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                appropriateFor: nil, create: true)
@@ -111,8 +116,8 @@ final class BypassRestorationTests: XCTestCase {
             appliedDomains.append(domains)
             if shouldFail { throw CocoaError(.userCancelled) }
         })
-        try blocker.load()
-        XCTAssertThrowsError(try blocker.reconcileSystemState())
+        try await blocker.load()
+        do { try await blocker.reconcileSystemState(); XCTFail("Expected failure") } catch {}
         XCTAssertTrue(blocker.canRetrySystemUpdate)
 
         // Make persistence fail without touching real application data or system rules.
@@ -120,7 +125,7 @@ final class BypassRestorationTests: XCTestCase {
         let backupURL = sessionDirectory.appendingPathComponent("blocked-domains.backup")
         try FileManager.default.moveItem(at: domainsURL, to: backupURL)
         try FileManager.default.createDirectory(at: domainsURL, withIntermediateDirectories: false)
-        blocker.add("example.org")
+        await blocker.add("example.org")
         XCTAssertNotNil(blocker.lastErrorMessage)
         XCTAssertEqual(blocker.blockedDomains, ["example.com"])
         XCTAssertEqual(appliedDomains, [["example.com"]])
@@ -129,7 +134,7 @@ final class BypassRestorationTests: XCTestCase {
         try FileManager.default.moveItem(at: backupURL, to: domainsURL)
 
         shouldFail = false
-        blocker.retryPendingSystemUpdate()
+        await blocker.retryPendingSystemUpdate()
         XCTAssertEqual(appliedDomains, [["example.com"], ["example.com"]])
         XCTAssertEqual(try domainStore.load(), ["example.com"])
         XCTAssertNil(try bypassStore.load())
@@ -138,7 +143,7 @@ final class BypassRestorationTests: XCTestCase {
     }
 
     @MainActor
-    func testExpiredBypassNotifiesBeforeAuthorizationAndSurvivesFailure() throws {
+    func testExpiredBypassNotifiesBeforeAuthorizationAndSurvivesFailure() async throws {
         let directory = "MuzzleTests-\(UUID().uuidString)"
         let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                appropriateFor: nil, create: true)
@@ -155,19 +160,19 @@ final class BypassRestorationTests: XCTestCase {
             if shouldFail { throw CocoaError(.userCancelled) }
         })
         blocker.onBypassRestoration = { events.append($0) }
-        try blocker.load()
+        try await blocker.load()
         XCTAssertTrue(blocker.isBypassActive)
-        XCTAssertThrowsError(try blocker.reconcileSystemState())
+        do { try await blocker.reconcileSystemState(); XCTFail("Expected failure") } catch {}
         XCTAssertEqual(events, [.pending, .failed])
         XCTAssertNotNil(try bypassStore.load())
         XCTAssertTrue(blocker.canRetrySystemUpdate)
         // Adding another site must not discard the overdue restoration retry.
         expectedDomains = ["example.com", "example.org"]
-        blocker.add("example.org")
+        await blocker.add("example.org")
         XCTAssertTrue(blocker.canRetrySystemUpdate)
         XCTAssertEqual(events, [.pending, .failed, .pending, .failed])
         shouldFail = false
-        blocker.retryPendingSystemUpdate()
+        await blocker.retryPendingSystemUpdate()
         XCTAssertEqual(events, [.pending, .failed, .pending, .failed, .pending, .restored])
         XCTAssertNil(try bypassStore.load())
         XCTAssertTrue(blocker.isProtectionEnforced)
