@@ -562,23 +562,36 @@ final class BlockerController: ObservableObject {
         }
     }
 
-    private func scheduleBypassTimer() {
+    private func scheduleBypassTimer(retryAfter: TimeInterval? = nil) {
         bypassTimer?.invalidate()
         bypassTimer = nil
 
         guard let bypassEndDate else { return }
-        let interval = bypassEndDate.timeIntervalSinceNow
-        guard interval > 0 else { return }
+        // Authorization can take longer than the bypass itself. An overdue
+        // deadline still needs a callback rather than silently losing its timer.
+        let interval = max(retryAfter ?? bypassEndDate.timeIntervalSinceNow, 0.01)
 
-        bypassTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+        let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
+            // This timer is installed only on the main run loop. Handle it
+            // directly so menu tracking and modal loops can process expiry too.
+            MainActor.assumeIsolated {
                 self?.expireBypass()
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        bypassTimer = timer
     }
 
     private func expireBypass() {
-        guard !isApplying else { return }
+        guard !isApplying else {
+            scheduleBypassTimer(retryAfter: 1)
+            return
+        }
+        guard let bypassEndDate else { return }
+        guard bypassEndDate <= Date() else {
+            scheduleBypassTimer()
+            return
+        }
         do {
             try restoreExpiredBypass()
         } catch {
@@ -588,6 +601,10 @@ final class BlockerController: ObservableObject {
 
     private func restoreExpiredBypass() throws {
         guard let bypassEndDate, bypassEndDate <= Date() else { return }
+        // A manual/startup reconciliation consumes the same scheduled attempt.
+        // On failure, leave the explicit retry available without duplicate prompts.
+        bypassTimer?.invalidate()
+        bypassTimer = nil
         do {
             if let timedSessionEndDate, timedSessionEndDate <= Date() {
                 try endProtection()
