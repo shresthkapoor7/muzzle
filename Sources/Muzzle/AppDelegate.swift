@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let blocker = BlockerController(isDebugMode: DebugMode.isEnabled)
-    private let pokeAPIKeyStore = PokeAPIKeyStore()
+    private lazy var pokeAPIKeyStore = PokeAPIKeyStore()
     private lazy var pokeClient = PokeClient(apiKeyStore: pokeAPIKeyStore)
     private var statusItemController: StatusItemController?
     private var managementWindowController: ManagementWindowController?
