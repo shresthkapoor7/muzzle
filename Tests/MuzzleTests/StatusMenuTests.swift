@@ -47,4 +47,16 @@ final class StatusMenuTests: XCTestCase {
         disclosure.setExpanded(false)
         XCTAssertFalse(disclosure.isExpanded(isConfigured: false))
     }
+
+    func testHeaderToggleRepeatedlyOpensAndClosesSavedAndUnsavedControls() {
+        for configured in [false, true] {
+            var disclosure = PokeKeyDisclosureState()
+            var expected = !configured
+            for _ in 0..<10 {
+                disclosure.toggle(isConfigured: configured)
+                expected.toggle()
+                XCTAssertEqual(disclosure.isExpanded(isConfigured: configured), expected)
+            }
+        }
+    }
 }

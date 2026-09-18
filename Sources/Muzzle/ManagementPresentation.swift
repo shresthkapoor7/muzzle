@@ -10,6 +10,10 @@ struct PokeKeyDisclosureState {
         userChoice = expanded
     }
 
+    mutating func toggle(isConfigured: Bool) {
+        userChoice = !isExpanded(isConfigured: isConfigured)
+    }
+
     mutating func configurationChanged(isConfigured: Bool) {
         userChoice = !isConfigured
     }
