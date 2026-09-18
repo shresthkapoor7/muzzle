@@ -8,6 +8,8 @@ final class StatusItemController: NSObject {
     private let onManage: () -> Void
     private let onEndSession: () -> Void
     private let onBypass: () -> Void
+    private let onRequestBypass: () -> Void
+    private let onRedeemBypass: () -> Void
     private let onRetrySystemUpdate: () -> Void
     private let onQuit: () -> Void
     private let statusItem: NSStatusItem
@@ -19,6 +21,8 @@ final class StatusItemController: NSObject {
         onManage: @escaping () -> Void,
         onEndSession: @escaping () -> Void,
         onBypass: @escaping () -> Void,
+        onRequestBypass: @escaping () -> Void,
+        onRedeemBypass: @escaping () -> Void,
         onRetrySystemUpdate: @escaping () -> Void,
         onQuit: @escaping () -> Void
     ) {
@@ -27,6 +31,8 @@ final class StatusItemController: NSObject {
         self.onManage = onManage
         self.onEndSession = onEndSession
         self.onBypass = onBypass
+        self.onRequestBypass = onRequestBypass
+        self.onRedeemBypass = onRedeemBypass
         self.onRetrySystemUpdate = onRetrySystemUpdate
         self.onQuit = onQuit
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -86,6 +92,11 @@ final class StatusItemController: NSObject {
             menu.addItem(.separator())
             menu.addItem(makeItem("Quit Muzzle", action: #selector(quit)))
         } else {
+            if !isDebugMode {
+                menu.addItem(.separator())
+                menu.addItem(makeItem("Request extra bypass from Poke…", action: #selector(requestBypass)))
+                menu.addItem(makeItem("Enter bypass approval code…", action: #selector(redeemBypass)))
+            }
             if blocker.canStartBypass {
                 menu.addItem(.separator())
                 menu.addItem(makeItem("Bypass… (\(blocker.remainingBypasses) left)", action: #selector(bypass)))
@@ -109,6 +120,8 @@ final class StatusItemController: NSObject {
     @objc private func manage() { onManage() }
     @objc private func endSession() { onEndSession() }
     @objc private func bypass() { onBypass() }
+    @objc private func requestBypass() { onRequestBypass() }
+    @objc private func redeemBypass() { onRedeemBypass() }
     @objc private func retrySystemUpdate() { onRetrySystemUpdate() }
     @objc private func quit() { onQuit() }
 }

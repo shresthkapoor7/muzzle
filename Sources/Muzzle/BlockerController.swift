@@ -38,6 +38,7 @@ final class BlockerController: ObservableObject {
     private var bypassTimer: Timer?
     private var needsExpiredSessionCleanup = false
     private var pendingSystemUpdate: PendingSystemUpdate?
+    private(set) var sessionID = UUID()
 
     var isTimedSession: Bool { timedSessionEndDate != nil }
     var isBypassActive: Bool { bypassEndDate != nil }
@@ -121,6 +122,7 @@ final class BlockerController: ObservableObject {
                 return
             }
             if blockedDomains.isEmpty {
+                sessionID = UUID()
                 guard (0...3).contains(allowedBypasses) else {
                     throw BlockerError.invalidBypassAllowance
                 }
@@ -257,6 +259,21 @@ final class BlockerController: ObservableObject {
             }
             throw persistenceError
         }
+    }
+
+    func grantExtraBypass() throws {
+        guard !blockedDomains.isEmpty else { throw BlockerError.noProtectedWebsites }
+        let remaining = min(remainingBypasses + 1, 3)
+        try bypassAllowanceStore.save(remaining: remaining)
+        remainingBypasses = remaining
+        if let pending = pendingSystemUpdate, let oldRemaining = pending.state.remainingBypasses {
+            pendingSystemUpdate = PendingSystemUpdate(
+                state: SessionState(domains: pending.state.domains, timedSession: pending.state.timedSession,
+                                    bypassSession: pending.state.bypassSession, remainingBypasses: min(oldRemaining + 1, 3)),
+                outcome: pending.outcome
+            )
+        }
+        refreshStatus()
     }
 
     @discardableResult

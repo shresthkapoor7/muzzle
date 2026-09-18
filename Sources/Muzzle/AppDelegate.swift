@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var managementWindowController: ManagementWindowController?
     private var workContextAlert: NSAlert?
     private var unlockKey: String = ""
+    private var bypassRequest: BypassRequest?
+    private var isRequestingBypass = false
+    private var bypassRequestSessionID: UUID?
     private var isSecondaryInstance = false
     private var isQuitAuthorized = false
     private let isDebugMode = DebugMode.isEnabled
@@ -52,6 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onManage: { [weak self] in self?.showManagementWindow() },
             onEndSession: { [weak self] in self?.requestEndSession() },
             onBypass: { [weak self] in self?.requestBypass() },
+            onRequestBypass: { [weak self] in self?.requestExtraBypass() },
+            onRedeemBypass: { [weak self] in self?.redeemExtraBypass() },
             onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() },
             onQuit: { [weak self] in self?.quitWhenInactive() }
         )
@@ -98,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startProtectionSession() {
+        bypassRequest = nil
         guard !isDebugMode else { return }
         guard pokeAPIKeyStore.isConfigured else {
             blocker.present(error: PokeClient.PokeError.missingAPIKey)
@@ -173,6 +179,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
         }
+    }
+
+    private func requestExtraBypass() {
+        guard !isDebugMode, !blocker.canQuit, !isRequestingBypass else { return }
+        guard blocker.remainingBypasses < 3 else {
+            showBypassMessage("You already have three bypasses available.")
+            return
+        }
+        let request = BypassRequest()
+        bypassRequestSessionID = blocker.sessionID
+        bypassRequest = request
+        isRequestingBypass = true
+        pokeClient.requestBypass(code: request.code) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isRequestingBypass = false
+                guard self.bypassRequest?.code == request.code,
+                      self.bypassRequestSessionID == self.blocker.sessionID,
+                      !self.blocker.canQuit else { return }
+                switch result {
+                case .success:
+                    self.bypassRequest?.markDelivered()
+                    self.showBypassMessage("Request sent to Poke. Enter the approval code within 15 minutes to add one bypass.")
+                case .failure(let error):
+                    self.bypassRequest = nil
+                    self.blocker.present(error: error)
+                    self.showManagementWindow()
+                }
+            }
+        }
+    }
+
+    private func redeemExtraBypass() {
+        guard !isDebugMode, !blocker.canQuit, !isRequestingBypass else { return }
+        guard bypassRequest != nil, bypassRequestSessionID == blocker.sessionID else {
+            showBypassMessage("Request an extra bypass from Poke first.")
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Enter bypass approval code"
+        alert.informativeText = "This adds one bypass without ending protection."
+        alert.addButton(withTitle: "Add bypass")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 28))
+        field.placeholderString = "Six-digit code from Poke"
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        var request = bypassRequest
+        guard request?.redeem(field.stringValue) == true else {
+            bypassRequest = request
+            showBypassMessage("That code is invalid, expired, or already used. After five attempts, request a new code.")
+            return
+        }
+        do {
+            try blocker.grantExtraBypass()
+            bypassRequest = nil
+            showBypassMessage("One extra bypass is available.")
+        } catch {
+            blocker.present(error: error)
+            showManagementWindow()
+        }
+    }
+
+    private func showBypassMessage(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = "Extra bypass"
+        alert.informativeText = message
+        alert.runModal()
     }
 
     private func sendBypassToPoke(minutes: Int) {
@@ -262,6 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             try blocker.endProtection()
+            bypassRequest = nil
         } catch {
             blocker.present(error: error)
         }
