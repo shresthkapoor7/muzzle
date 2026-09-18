@@ -227,13 +227,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        guard bypassRequest?.redeem(field.stringValue) == true else {
+        var request = bypassRequest
+        guard request?.redeem(field.stringValue) == true else {
+            bypassRequest = request
             showBypassMessage("That code is invalid, expired, or already used. After five attempts, request a new code.")
             return
         }
-        bypassRequest = nil
         do {
             try blocker.grantExtraBypass()
+            bypassRequest = nil
             showBypassMessage("One extra bypass is available.")
         } catch {
             blocker.present(error: error)
