@@ -13,7 +13,13 @@ final class PokeAPIKeyStore: ObservableObject {
     private let deleteKey: @MainActor () throws -> Void
 
     convenience init() {
-        self.init(readKey: Self.loadKey, writeKey: Self.saveKey, deleteKey: Self.removeKey)
+        // Explicit closures keep the calls isolated while delegating initialization
+        // on Swift 6.0 (which rejects direct isolated static method references here).
+        self.init(
+            readKey: { @MainActor in PokeAPIKeyStore.loadKey() },
+            writeKey: { @MainActor key in try PokeAPIKeyStore.saveKey(key) },
+            deleteKey: { @MainActor in try PokeAPIKeyStore.removeKey() }
+        )
     }
 
     init(readKey: @escaping @MainActor () -> String?, writeKey: @escaping @MainActor (String) throws -> Void,
