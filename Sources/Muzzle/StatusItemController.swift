@@ -12,6 +12,7 @@ final class StatusItemController: NSObject {
     private let onRedeemBypass: () -> Void
     private let onRetrySystemUpdate: () -> Void
     private let onQuit: () -> Void
+    private let onCheckForUpdates: () -> Void
     private let statusItem: NSStatusItem
     private var blockerObservation: AnyCancellable?
 
@@ -24,7 +25,8 @@ final class StatusItemController: NSObject {
         onRequestBypass: @escaping () -> Void,
         onRedeemBypass: @escaping () -> Void,
         onRetrySystemUpdate: @escaping () -> Void,
-        onQuit: @escaping () -> Void
+        onQuit: @escaping () -> Void,
+        onCheckForUpdates: @escaping () -> Void
     ) {
         self.blocker = blocker
         self.isDebugMode = isDebugMode
@@ -35,6 +37,7 @@ final class StatusItemController: NSObject {
         self.onRedeemBypass = onRedeemBypass
         self.onRetrySystemUpdate = onRetrySystemUpdate
         self.onQuit = onQuit
+        self.onCheckForUpdates = onCheckForUpdates
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
@@ -71,7 +74,13 @@ final class StatusItemController: NSObject {
     }
 
     private func rebuildMenu() {
+        statusItem.menu = makeMenu()
+    }
+
+    func makeMenu() -> NSMenu {
         let menu = NSMenu()
+        let presentation = StatusMenuPresentation(usesPrivilegedService: blocker.usesPrivilegedService,
+                                                  serviceConnected: blocker.serviceConnected, canQuit: blocker.canQuit)
 
         let title = NSMenuItem(title: isDebugMode ? "Muzzle (Debug Mode)" : "Muzzle", action: nil, keyEquivalent: "")
         title.isEnabled = false
@@ -80,15 +89,20 @@ final class StatusItemController: NSObject {
         let status = NSMenuItem(title: blocker.statusMessage, action: nil, keyEquivalent: "")
         status.isEnabled = false
         menu.addItem(status)
+        if let date = blocker.bypassRenewalDate {
+            let renewal = NSMenuItem(title: "Bypasses renew \(date.formatted(date: .abbreviated, time: .shortened))", action: nil, keyEquivalent: "")
+            renewal.isEnabled = false
+            menu.addItem(renewal)
+        }
         menu.addItem(.separator())
 
         let manageTitle = blocker.blockedDomains.isEmpty ? "Start blocking…" : "Manage protected websites…"
         menu.addItem(makeItem(manageTitle, action: #selector(manage)))
         if blocker.canRetrySystemUpdate {
             menu.addItem(.separator())
-            menu.addItem(makeItem("Retry macOS permission…", action: #selector(retrySystemUpdate)))
+            menu.addItem(makeItem(blocker.usesPrivilegedService ? "Retry service update…" : "Retry macOS permission…", action: #selector(retrySystemUpdate)))
         }
-        if blocker.canQuit {
+        if presentation.showsQuit {
             menu.addItem(.separator())
             menu.addItem(makeItem("Quit Muzzle", action: #selector(quit)))
         } else {
@@ -108,7 +122,14 @@ final class StatusItemController: NSObject {
             }
         }
 
-        statusItem.menu = menu
+        menu.addItem(.separator())
+        if let title = presentation.serviceStatusTitle {
+            let serviceStatus = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            serviceStatus.isEnabled = false
+            menu.addItem(serviceStatus)
+        }
+        menu.addItem(makeItem("Check for Updates…", action: #selector(checkForUpdates)))
+        return menu
     }
 
     private func makeItem(_ title: String, action: Selector) -> NSMenuItem {
@@ -124,4 +145,5 @@ final class StatusItemController: NSObject {
     @objc private func redeemBypass() { onRedeemBypass() }
     @objc private func retrySystemUpdate() { onRetrySystemUpdate() }
     @objc private func quit() { onQuit() }
+    @objc private func checkForUpdates() { onCheckForUpdates() }
 }
