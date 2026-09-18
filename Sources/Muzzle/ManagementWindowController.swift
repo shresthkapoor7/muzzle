@@ -50,6 +50,7 @@ private struct ManagementView: View {
     @State private var pokeAPIKeyError: String?
     @State private var isTestingPoke = false
     @State private var didSendPokeTest = false
+    @State private var isPokeKeyExpanded = false
 
     var body: some View {
         ScrollView {
@@ -94,7 +95,13 @@ private struct ManagementView: View {
     }
 
     private var pokeAPIKeyPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        DisclosureGroup(isExpanded: Binding(
+            get: { !pokeAPIKeyStore.isConfigured || isPokeKeyExpanded },
+            set: { isPokeKeyExpanded = $0 }
+        )) {
+            pokeAPIKeyControls
+                .padding(.top, 8)
+        } label: {
             HStack {
                 Text("Poke API key")
                     .font(.system(size: 15, weight: .semibold))
@@ -106,7 +113,16 @@ private struct ManagementView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(pokeAPIKeyStore.isConfigured ? .green : .orange)
             }
+            .frame(minHeight: 44)
+        }
+        .onChange(of: pokeAPIKeyStore.isConfigured) { _ in isPokeKeyExpanded = false }
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
 
+    private var pokeAPIKeyControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 SecureField(
                     pokeAPIKeyStore.isConfigured ? "Replace saved API key" : "Paste your Poke API key",
@@ -142,9 +158,6 @@ private struct ManagementView: View {
                 }
             }
         }
-        .padding(16)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var header: some View {
