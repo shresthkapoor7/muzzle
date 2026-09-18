@@ -10,11 +10,11 @@ scripts/build-app.sh
 open dist/Muzzle.app
 ```
 
-Move the app to its permanent location, then choose **Set Up Blocking Service…** and approve administrator access. Building or opening the app does not install the daemon. End any legacy session first; setup refuses existing legacy protection. Terminal alternative: `sudo scripts/install-helper.sh /Applications/Muzzle.app`.
+Move the app to its permanent location, then open **Start blocking…** and choose **Set Up Blocking Service…** in the window and approve administrator access. Building or opening the app does not install the daemon. End any legacy session first; setup refuses existing legacy protection. Terminal alternative: `sudo scripts/install-helper.sh /Applications/Muzzle.app`.
 
 Normal mode requires the service. It starts at boot and owns normal-mode hosts/PF rules, session state, keys, bypass allowances, and deadlines. Routine blocking changes and bypass expiry do not request administrator permission. Quitting the menu-bar app leaves protection running.
 
-This ad-hoc build uses a manually installed launch daemon, not SMAppService. No paid developer certificate is needed. Installation pins the exact hardened app signature and user ID, so replacing/rebuilding the app requires **Set Up Blocking Service…** again with administrator approval. A distributed Developer ID build could use SMAppService and a stable signing requirement as a separate packaging change. This is not “zero prompts forever.”
+This ad-hoc build uses a manually installed launch daemon, not SMAppService. No paid developer certificate is needed. Installation pins the exact hardened app signature and user ID, so replacing/rebuilding the app requires **Set Up Blocking Service…** in the Muzzle window again with administrator approval. A distributed Developer ID build could use SMAppService and a stable signing requirement as a separate packaging change. This is not “zero prompts forever.”
 
 ## Sessions and Poke
 

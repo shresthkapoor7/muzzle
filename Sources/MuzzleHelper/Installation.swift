@@ -25,6 +25,7 @@ enum Installation {
         defer { try? FileManager.default.removeItem(at: staging) }
         let app = staging.appendingPathComponent("Muzzle.app")
         try FileManager.default.copyItem(at: sourceApp, to: app)
+        try RootFiles.secureStagedTree(app.path)
         // Do not let a copied symlink redirect nested-code validation back into
         // caller-writable storage outside the protected staging directory.
         for relative in ["", "Contents", "Contents/Library", "Contents/Library/HelperTools"] {

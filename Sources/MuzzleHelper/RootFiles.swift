@@ -3,6 +3,31 @@ import Darwin
 import MuzzleService
 
 enum RootFiles {
+    /// Only for a newly copied tree inside an already root-owned 0700 staging
+    /// directory. FileManager.copyItem preserves source ownership and ACLs.
+    static func secureStagedTree(_ path: String) throws {
+        guard geteuid() == 0 else { throw ServiceFailure("Securing staged code requires administrator access.") }
+        let descriptor = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard descriptor >= 0 else { throw ServiceFailure("Staged code contains an inaccessible file or symbolic link.") }
+        defer { close(descriptor) }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0 else { throw ServiceFailure("Could not inspect staged code.") }
+        let kind = info.st_mode & S_IFMT
+        guard kind == S_IFDIR || kind == S_IFREG else { throw ServiceFailure("Staged code contains an unsupported file type.") }
+        let mode: mode_t = kind == S_IFDIR || info.st_mode & 0o111 != 0 ? 0o700 : 0o600
+        guard fchown(descriptor, 0, 0) == 0, fchmod(descriptor, mode) == 0 else {
+            throw ServiceFailure("Could not secure staged code ownership and permissions.")
+        }
+        // Remove copied ACL grants as well as group/world POSIX write access.
+        try RootProcess.run("/bin/chmod", ["-N", path])
+        try check(path, directory: kind == S_IFDIR)
+        if kind == S_IFDIR {
+            for name in try FileManager.default.contentsOfDirectory(atPath: path) {
+                try secureStagedTree(URL(fileURLWithPath: path).appendingPathComponent(name).path)
+            }
+        }
+    }
+
     static func directory(_ path: String, mode: Int = 0o700) throws {
         if !FileManager.default.fileExists(atPath: path) {
             try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: false,

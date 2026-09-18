@@ -57,7 +57,7 @@ final class BlockerController: ObservableObject {
     var canQuitApp: Bool { usesPrivilegedService || canQuit }
     var canStartBypass: Bool { !blockedDomains.isEmpty && !isBypassActive && remainingBypasses > 0 }
     var needsSystemReconciliation: Bool { !usesPrivilegedService && (!blockedDomains.isEmpty || needsExpiredSessionCleanup) }
-    var canRetrySystemUpdate: Bool { usesPrivilegedService ? lastErrorMessage != nil : pendingSystemUpdate != nil }
+    var canRetrySystemUpdate: Bool { usesPrivilegedService ? serviceConnected && lastErrorMessage != nil : pendingSystemUpdate != nil }
 
     init(
         isDebugMode: Bool = false,
@@ -816,7 +816,7 @@ final class BlockerController: ObservableObject {
         } catch {
             guard generation == serviceResponseGeneration else { return }
             serviceConnected = false
-            statusMessage = "Blocking service unavailable. Choose Set Up Blocking Service from the Muzzle menu."
+            statusMessage = "Blocking service unavailable. Set it up in the Muzzle window."
         }
     }
 }

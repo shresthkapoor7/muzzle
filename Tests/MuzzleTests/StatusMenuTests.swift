@@ -1,34 +1,50 @@
 import XCTest
-import AppKit
-import MuzzleService
 @testable import Muzzle
 
 final class StatusMenuTests: XCTestCase {
-    @MainActor
-    func testServiceSetupAndActiveSessionMenu() {
-        let blocker = BlockerController()
-        let controller = StatusItemController(
-            blocker: blocker, isDebugMode: false, onManage: {}, onEndSession: {},
-            onBypass: {}, onRequestBypass: {}, onRedeemBypass: {}, onRetrySystemUpdate: {},
-            onQuit: {}, onCheckForUpdates: {}, onInstallService: {}
-        )
-        XCTAssertTrue(controller.makeMenu().items.contains { $0.title == "Set Up Blocking Service…" })
+    func testServiceStatusAndActiveSessionMenuWithoutWindowServer() {
+        let unavailable = StatusMenuPresentation(usesPrivilegedService: true, serviceConnected: false, canQuit: true)
+        XCTAssertEqual(unavailable.serviceStatusTitle, "Blocking service: unavailable")
+        XCTAssertTrue(unavailable.showsQuit)
 
-        var snapshot = ServiceSnapshot()
-        snapshot.domains = ["example.com"]
-        snapshot.sessionID = UUID()
-        snapshot.isEnforced = true
-        blocker.acceptServiceResponse(ServiceResponse(snapshot: snapshot))
-        let activeItems = controller.makeMenu().items
-        XCTAssertTrue(activeItems.contains { $0.title == "Blocking service: running" && !$0.isEnabled })
-        XCTAssertFalse(activeItems.contains { $0.title.contains("Set Up") || $0.title.contains("Install / Update") })
-        XCTAssertFalse(activeItems.contains { $0.title.hasPrefix("Quit Muzzle") })
+        let active = StatusMenuPresentation(usesPrivilegedService: true, serviceConnected: true, canQuit: false)
+        XCTAssertEqual(active.serviceStatusTitle, "Blocking service: running")
+        XCTAssertFalse(active.showsQuit)
 
-        snapshot.bypassEndsAt = Date().addingTimeInterval(60)
-        blocker.acceptServiceResponse(ServiceResponse(snapshot: snapshot))
-        XCTAssertFalse(controller.makeMenu().items.contains { $0.title.hasPrefix("Quit Muzzle") })
+        let inactive = StatusMenuPresentation(usesPrivilegedService: true, serviceConnected: true, canQuit: true)
+        XCTAssertTrue(inactive.showsQuit)
 
-        blocker.acceptServiceResponse(ServiceResponse(snapshot: ServiceSnapshot()))
-        XCTAssertTrue(controller.makeMenu().items.contains { $0.title == "Quit Muzzle" })
+        let debug = StatusMenuPresentation(usesPrivilegedService: false, serviceConnected: false, canQuit: false)
+        XCTAssertNil(debug.serviceStatusTitle)
+        XCTAssertFalse(debug.showsQuit)
+    }
+
+    func testUnconfiguredPokePanelCanBeCollapsedAndReopened() {
+        var disclosure = PokeKeyDisclosureState()
+        XCTAssertTrue(disclosure.isExpanded(isConfigured: false))
+        disclosure.setExpanded(false)
+        XCTAssertFalse(disclosure.isExpanded(isConfigured: false))
+        disclosure.setExpanded(true)
+        XCTAssertTrue(disclosure.isExpanded(isConfigured: false))
+    }
+
+    func testSavedPokePanelStartsCollapsedAndCanBeOpened() {
+        var disclosure = PokeKeyDisclosureState()
+        XCTAssertFalse(disclosure.isExpanded(isConfigured: true))
+        disclosure.setExpanded(true)
+        XCTAssertTrue(disclosure.isExpanded(isConfigured: true))
+        disclosure.setExpanded(false)
+        XCTAssertFalse(disclosure.isExpanded(isConfigured: true))
+    }
+
+    func testSavingCollapsesAndRemovingReopensPokeControls() {
+        var disclosure = PokeKeyDisclosureState()
+        disclosure.setExpanded(true)
+        disclosure.configurationChanged(isConfigured: true)
+        XCTAssertFalse(disclosure.isExpanded(isConfigured: true))
+        disclosure.configurationChanged(isConfigured: false)
+        XCTAssertTrue(disclosure.isExpanded(isConfigured: false))
+        disclosure.setExpanded(false)
+        XCTAssertFalse(disclosure.isExpanded(isConfigured: false))
     }
 }

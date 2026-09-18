@@ -13,7 +13,6 @@ final class StatusItemController: NSObject {
     private let onRetrySystemUpdate: () -> Void
     private let onQuit: () -> Void
     private let onCheckForUpdates: () -> Void
-    private let onInstallService: () -> Void
     private let statusItem: NSStatusItem
     private var blockerObservation: AnyCancellable?
 
@@ -27,8 +26,7 @@ final class StatusItemController: NSObject {
         onRedeemBypass: @escaping () -> Void,
         onRetrySystemUpdate: @escaping () -> Void,
         onQuit: @escaping () -> Void,
-        onCheckForUpdates: @escaping () -> Void,
-        onInstallService: @escaping () -> Void
+        onCheckForUpdates: @escaping () -> Void
     ) {
         self.blocker = blocker
         self.isDebugMode = isDebugMode
@@ -40,7 +38,6 @@ final class StatusItemController: NSObject {
         self.onRetrySystemUpdate = onRetrySystemUpdate
         self.onQuit = onQuit
         self.onCheckForUpdates = onCheckForUpdates
-        self.onInstallService = onInstallService
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
@@ -82,6 +79,8 @@ final class StatusItemController: NSObject {
 
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
+        let presentation = StatusMenuPresentation(usesPrivilegedService: blocker.usesPrivilegedService,
+                                                  serviceConnected: blocker.serviceConnected, canQuit: blocker.canQuit)
 
         let title = NSMenuItem(title: isDebugMode ? "Muzzle (Debug Mode)" : "Muzzle", action: nil, keyEquivalent: "")
         title.isEnabled = false
@@ -103,7 +102,7 @@ final class StatusItemController: NSObject {
             menu.addItem(.separator())
             menu.addItem(makeItem(blocker.usesPrivilegedService ? "Retry service update…" : "Retry macOS permission…", action: #selector(retrySystemUpdate)))
         }
-        if blocker.canQuit {
+        if presentation.showsQuit {
             menu.addItem(.separator())
             menu.addItem(makeItem("Quit Muzzle", action: #selector(quit)))
         } else {
@@ -124,14 +123,10 @@ final class StatusItemController: NSObject {
         }
 
         menu.addItem(.separator())
-        if blocker.usesPrivilegedService {
-            if blocker.serviceConnected {
-                let serviceStatus = NSMenuItem(title: "Blocking service: running", action: nil, keyEquivalent: "")
-                serviceStatus.isEnabled = false
-                menu.addItem(serviceStatus)
-            } else {
-                menu.addItem(makeItem("Set Up Blocking Service…", action: #selector(installService)))
-            }
+        if let title = presentation.serviceStatusTitle {
+            let serviceStatus = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            serviceStatus.isEnabled = false
+            menu.addItem(serviceStatus)
         }
         menu.addItem(makeItem("Check for Updates…", action: #selector(checkForUpdates)))
         return menu
@@ -151,5 +146,4 @@ final class StatusItemController: NSObject {
     @objc private func retrySystemUpdate() { onRetrySystemUpdate() }
     @objc private func quit() { onQuit() }
     @objc private func checkForUpdates() { onCheckForUpdates() }
-    @objc private func installService() { onInstallService() }
 }

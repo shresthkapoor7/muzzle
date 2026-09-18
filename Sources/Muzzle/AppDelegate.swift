@@ -74,8 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onRedeemBypass: { [weak self] in self?.redeemExtraBypass() },
             onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() },
             onQuit: { [weak self] in self?.quitWhenInactive() },
-            onCheckForUpdates: { [weak self] in self?.checkForUpdates(manual: true) },
-            onInstallService: { [weak self] in self?.installBlockingService() }
+            onCheckForUpdates: { [weak self] in self?.checkForUpdates(manual: true) }
         )
 
         if !isDebugMode {
@@ -139,7 +138,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 pokeAPIKeyStore: pokeAPIKeyStore,
                 onProtectionStarted: { [weak self] in self?.startProtectionSession() },
                 onTestPoke: { [weak self] completion in self?.sendPokeConnectionTest(completion: completion) },
-                onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() }
+                onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() },
+                onInstallService: { [weak self] in self?.installBlockingService() }
             )
         }
         managementWindowController?.showWindow(nil)

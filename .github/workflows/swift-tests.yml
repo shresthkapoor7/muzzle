@@ -18,3 +18,9 @@ jobs:
           persist-credentials: false
       - name: Run Swift tests
         run: swift test
+      - name: Build and verify packaged app
+        run: |
+          scripts/build-app.sh
+          codesign --verify --deep --strict dist/Muzzle.app
+      - name: Validate root-owned staging with disposable fixtures
+        run: sudo env DEVELOPER_DIR="$DEVELOPER_DIR" MUZZLE_TEST_APP="$GITHUB_WORKSPACE/dist/Muzzle.app" /usr/bin/swift test --skip-build --filter StagingTests

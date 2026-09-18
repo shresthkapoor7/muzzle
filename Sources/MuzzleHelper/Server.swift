@@ -57,7 +57,7 @@ final class ServiceServer: @unchecked Sendable {
             SocketTransport.configure(fd, timeout: 5)
             DispatchQueue.global().async { [self] in
                 guard PeerAuthentication.validate(fd: fd, config: config) else {
-                    reply(ServiceResponse(error: "This app build is not authorized. Choose Set Up Blocking Service from the Muzzle menu."), fd: fd)
+                    reply(ServiceResponse(error: "This app build is not authorized. Open the Muzzle window and choose Set Up Blocking Service."), fd: fd)
                     return
                 }
                 do {

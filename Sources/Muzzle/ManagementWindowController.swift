@@ -9,7 +9,8 @@ final class ManagementWindowController: NSWindowController {
         pokeAPIKeyStore: PokeAPIKeyStore,
         onProtectionStarted: @escaping () -> Void,
         onTestPoke: @escaping (@escaping (Result<Void, Error>) -> Void) -> Void,
-        onRetrySystemUpdate: @escaping () -> Void
+        onRetrySystemUpdate: @escaping () -> Void,
+        onInstallService: @escaping () -> Void
     ) {
         let rootView = ManagementView(
             blocker: blocker,
@@ -17,7 +18,8 @@ final class ManagementWindowController: NSWindowController {
             pokeAPIKeyStore: pokeAPIKeyStore,
             onProtectionStarted: onProtectionStarted,
             onTestPoke: onTestPoke,
-            onRetrySystemUpdate: onRetrySystemUpdate
+            onRetrySystemUpdate: onRetrySystemUpdate,
+            onInstallService: onInstallService
         )
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
@@ -42,6 +44,7 @@ private struct ManagementView: View {
     let onProtectionStarted: () -> Void
     let onTestPoke: (@escaping (Result<Void, Error>) -> Void) -> Void
     let onRetrySystemUpdate: () -> Void
+    let onInstallService: () -> Void
     @State private var domainInput = ""
     @State private var blockMode = BlockMode.timed
     @State private var timedMinutesInput = "30"
@@ -50,12 +53,15 @@ private struct ManagementView: View {
     @State private var pokeAPIKeyError: String?
     @State private var isTestingPoke = false
     @State private var didSendPokeTest = false
-    @State private var isPokeKeyExpanded = false
+    @State private var pokeKeyDisclosure = PokeKeyDisclosureState()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                if blocker.usesPrivilegedService && !blocker.serviceConnected {
+                    serviceSetupPanel
+                }
                 if !isDebugMode {
                     pokeAPIKeyPanel
                 }
@@ -96,8 +102,8 @@ private struct ManagementView: View {
 
     private var pokeAPIKeyPanel: some View {
         DisclosureGroup(isExpanded: Binding(
-            get: { !pokeAPIKeyStore.isConfigured || isPokeKeyExpanded },
-            set: { isPokeKeyExpanded = $0 }
+            get: { pokeKeyDisclosure.isExpanded(isConfigured: pokeAPIKeyStore.isConfigured) },
+            set: { pokeKeyDisclosure.setExpanded($0) }
         )) {
             pokeAPIKeyControls
                 .padding(.top, 8)
@@ -115,7 +121,9 @@ private struct ManagementView: View {
             }
             .frame(minHeight: 44)
         }
-        .onChange(of: pokeAPIKeyStore.isConfigured) { _ in isPokeKeyExpanded = false }
+        .onChange(of: pokeAPIKeyStore.isConfigured) { configured in
+            pokeKeyDisclosure.configurationChanged(isConfigured: configured)
+        }
         .padding(16)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -182,6 +190,22 @@ private struct ManagementView: View {
                     .foregroundStyle(.orange)
             }
         }
+    }
+
+    private var serviceSetupPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Set up background blocking")
+                .font(.system(size: 15, weight: .semibold))
+            Text("Administrator approval installs or repairs Muzzle’s background service. It keeps protection and bypass deadlines working when the app is closed.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            Button("Set Up Blocking Service…", action: onInstallService)
+                .buttonStyle(.borderedProminent)
+                .disabled(blocker.isApplying)
+        }
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var setupPanel: some View {
@@ -392,6 +416,7 @@ private struct ManagementView: View {
     private var isBlockDisabled: Bool {
         domainInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || blocker.isApplying
+            || (blocker.usesPrivilegedService && !blocker.serviceConnected)
             || (blocker.blockedDomains.isEmpty && blockMode == .timed && timedMinutes == nil)
             || (blocker.blockedDomains.isEmpty && blockMode == .untilEnded && !isDebugMode && !pokeAPIKeyStore.isConfigured)
     }
