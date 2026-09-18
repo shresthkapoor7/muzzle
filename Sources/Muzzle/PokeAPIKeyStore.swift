@@ -7,15 +7,33 @@ final class PokeAPIKeyStore: ObservableObject {
     private static let account = "poke-api-key"
 
     @Published private(set) var isConfigured: Bool
+    private var cachedKey: String?
+    private let readKey: () -> String?
+    private let writeKey: (String) throws -> Void
+    private let deleteKey: () throws -> Void
 
-    init() {
-        isConfigured = Self.loadKey() != nil
+    convenience init() {
+        self.init(readKey: Self.loadKey, writeKey: Self.saveKey, deleteKey: Self.removeKey)
+    }
+
+    init(readKey: @escaping () -> String?, writeKey: @escaping (String) throws -> Void,
+         deleteKey: @escaping () throws -> Void) {
+        self.readKey = readKey
+        self.writeKey = writeKey
+        self.deleteKey = deleteKey
+        cachedKey = readKey()
+        isConfigured = cachedKey != nil
     }
 
     func save(_ rawKey: String) throws {
         let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw PokeAPIKeyStoreError.emptyKey }
+        try writeKey(key)
+        cachedKey = key
+        isConfigured = true
+    }
 
+    private static func saveKey(_ key: String) throws {
         let data = Data(key.utf8)
         let query = Self.query
         let attributes: [String: Any] = [kSecValueData as String: data]
@@ -30,20 +48,27 @@ final class PokeAPIKeyStore: ObservableObject {
         } else if updateStatus != errSecSuccess {
             throw PokeAPIKeyStoreError.keychain(updateStatus)
         }
-
-        isConfigured = true
     }
 
     func remove() throws {
+        try deleteKey()
+        cachedKey = nil
+        isConfigured = false
+    }
+
+    private static func removeKey() throws {
         let status = SecItemDelete(Self.query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw PokeAPIKeyStoreError.keychain(status)
         }
-        isConfigured = false
     }
 
     func apiKey() -> String? {
-        Self.loadKey()
+        if let cachedKey { return cachedKey }
+        // A denied or unavailable read can be retried on the next delivery attempt.
+        cachedKey = readKey()
+        isConfigured = cachedKey != nil
+        return cachedKey
     }
 
     private static var query: [String: Any] {

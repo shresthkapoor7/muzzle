@@ -155,6 +155,7 @@ final class BlockerController: ObservableObject {
             if previousState.domains.isEmpty {
                 allowance = BypassAllowance(limit: allowedBypasses)
             }
+            let previousPendingSystemUpdate = pendingSystemUpdate
             pendingSystemUpdate = PendingSystemUpdate(
                 state: currentSessionState,
                 outcome: previousState.domains.isEmpty
@@ -162,7 +163,8 @@ final class BlockerController: ObservableObject {
                     : .none
             )
             try persistAndApply(
-                revertingTo: previousState
+                revertingTo: previousState,
+                restoringPendingUpdate: previousPendingSystemUpdate
             )
             pendingSystemUpdate = nil
             if let bypassEndDate, bypassEndDate <= Date() {
@@ -371,7 +373,8 @@ final class BlockerController: ObservableObject {
     }
 
     private func persistAndApply(
-        revertingTo previousState: SessionState
+        revertingTo previousState: SessionState,
+        restoringPendingUpdate previousPendingSystemUpdate: PendingSystemUpdate?
     ) throws {
         isApplying = true
         defer { isApplying = false }
@@ -380,7 +383,12 @@ final class BlockerController: ObservableObject {
             if !isBypassActive {
                 try applySystemState(currentSessionState)
             }
-            try persistCurrentSessionState()
+            do {
+                try persistCurrentSessionState()
+            } catch {
+                pendingSystemUpdate = previousPendingSystemUpdate
+                throw error
+            }
             scheduleExpiryTimer()
             scheduleProgressTimer()
             refreshStatus()
