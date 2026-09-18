@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import MuzzleService
 
 @MainActor
 final class BlockerController: ObservableObject {
@@ -39,6 +40,11 @@ final class BlockerController: ObservableObject {
     private var progressTimer: Timer?
     private var bypassTimer: Timer?
     private var allowanceTimer: Timer?
+    private var serviceTimer: Timer?
+    private var servicePollInFlight = false
+    private var serviceEnforced = false
+    @Published private(set) var serviceConnected = false
+    let usesPrivilegedService: Bool
     private var needsExpiredSessionCleanup = false
     private var pendingSystemUpdate: PendingSystemUpdate?
     private(set) var sessionID = UUID()
@@ -46,11 +52,12 @@ final class BlockerController: ObservableObject {
 
     var isTimedSession: Bool { timedSessionEndDate != nil }
     var isBypassActive: Bool { bypassEndDate != nil }
-    var isProtectionEnforced: Bool { !blockedDomains.isEmpty && !isBypassActive }
+    var isProtectionEnforced: Bool { usesPrivilegedService ? serviceEnforced : !blockedDomains.isEmpty && !isBypassActive }
     var canQuit: Bool { blockedDomains.isEmpty && !isBypassActive }
+    var canQuitApp: Bool { usesPrivilegedService || canQuit }
     var canStartBypass: Bool { !blockedDomains.isEmpty && !isBypassActive && remainingBypasses > 0 }
-    var needsSystemReconciliation: Bool { !blockedDomains.isEmpty || needsExpiredSessionCleanup }
-    var canRetrySystemUpdate: Bool { pendingSystemUpdate != nil }
+    var needsSystemReconciliation: Bool { !usesPrivilegedService && (!blockedDomains.isEmpty || needsExpiredSessionCleanup) }
+    var canRetrySystemUpdate: Bool { usesPrivilegedService ? lastErrorMessage != nil : pendingSystemUpdate != nil }
 
     init(
         isDebugMode: Bool = false,
@@ -58,6 +65,7 @@ final class BlockerController: ObservableObject {
         applyConfiguration: (([String]) throws -> Void)? = nil
     ) {
         let profile: BlockingProfile = isDebugMode ? .debug : .normal
+        usesPrivilegedService = !isDebugMode && applicationSupportDirectoryName == nil && applyConfiguration == nil
         let directory = applicationSupportDirectoryName ?? profile.applicationSupportDirectoryName
         domainStore = DomainStore(
             applicationSupportDirectoryName: directory,
@@ -70,6 +78,11 @@ final class BlockerController: ObservableObject {
     }
 
     func load() throws {
+        if usesPrivilegedService {
+            startServicePolling()
+            try serviceCommand(.status)
+            return
+        }
         blockedDomains = try domainStore.load()
         let timedSession = try timedSessionStore.load()
         timedSessionStartDate = timedSession?.startedAt
@@ -122,6 +135,13 @@ final class BlockerController: ObservableObject {
         timedDurationMinutes: Int? = nil,
         allowedBypasses: Int = 1
     ) {
+        if usesPrivilegedService {
+            do {
+                let domain = try DomainValidator.normalizedDomain(from: rawValue)
+                try serviceCommand(.add(domain: domain, minutes: timedDurationMinutes, allowance: allowedBypasses))
+            } catch { present(error: error) }
+            return
+        }
         do {
             let domain = try DomainValidator.normalizedDomain(from: rawValue)
             guard !blockedDomains.contains(domain) else {
@@ -176,6 +196,7 @@ final class BlockerController: ObservableObject {
     }
 
     func reconcileSystemState() throws {
+        if usesPrivilegedService { try serviceCommand(.retry); return }
         isApplying = true
         defer { isApplying = false }
 
@@ -192,7 +213,8 @@ final class BlockerController: ObservableObject {
         refreshStatus()
     }
 
-    func endProtection() throws {
+    func endProtection(key: String = "") throws {
+        if usesPrivilegedService { try serviceCommand(.end(code: key)); return }
         let previousState = currentSessionState
         let endedState = SessionState(
             domains: [],
@@ -232,6 +254,7 @@ final class BlockerController: ObservableObject {
     }
 
     func startBypass(for minutes: Int) throws {
+        if usesPrivilegedService { try serviceCommand(.bypass(minutes: minutes)); return }
         try renewBypassesIfNeeded()
         guard minutes > 0 else { throw BlockerError.invalidBypassDuration }
         guard !blockedDomains.isEmpty else { throw BlockerError.noProtectedWebsites }
@@ -279,6 +302,7 @@ final class BlockerController: ObservableObject {
     }
 
     func grantExtraBypass() throws {
+        guard !usesPrivilegedService else { throw ServiceFailure("An approval code is required by the blocking service.") }
         guard !blockedDomains.isEmpty else { throw BlockerError.noProtectedWebsites }
         try renewBypassesIfNeeded()
         guard remainingBypasses < 3 else { throw BlockerError.bypassAllowanceFull }
@@ -297,6 +321,10 @@ final class BlockerController: ObservableObject {
 
     @discardableResult
     func retryPendingSystemUpdate() -> SystemUpdateRetryOutcome {
+        if usesPrivilegedService {
+            do { try serviceCommand(.retry) } catch { present(error: error) }
+            return .none
+        }
         do { try renewBypassesIfNeeded() } catch { present(error: error); return .none }
         guard let pendingSystemUpdate else { return .none }
 
@@ -516,6 +544,7 @@ final class BlockerController: ObservableObject {
     }
 
     private func scheduleProgressTimer() {
+        guard !usesPrivilegedService else { return }
         scheduleAllowanceTimer()
         progressTimer?.invalidate()
         progressTimer = nil
@@ -674,6 +703,7 @@ final class BlockerController: ObservableObject {
     }
 
     func renewBypassesIfNeeded(now: Date = Date()) throws {
+        if usesPrivilegedService { try serviceCommand(.status); return }
         guard !isApplying, !blockedDomains.isEmpty,
               timedSessionEndDate.map({ $0 > now }) ?? true,
               var updated = allowance, updated.renewIfNeeded(now: now) else { return }
@@ -692,6 +722,7 @@ final class BlockerController: ObservableObject {
     }
 
     private func scheduleAllowanceTimer() {
+        guard !usesPrivilegedService else { return }
         allowanceTimer?.invalidate()
         allowanceTimer = nil
         guard allowance != nil, !blockedDomains.isEmpty else { return }
@@ -703,6 +734,60 @@ final class BlockerController: ObservableObject {
         }
         RunLoop.main.add(timer, forMode: .common)
         allowanceTimer = timer
+    }
+
+    private var serviceResponseGeneration = 0
+
+    func serviceCommand(_ command: ServiceCommand) throws {
+        serviceResponseGeneration += 1
+        let response = try BlockingServiceClient.request(command)
+        acceptServiceResponse(response)
+        if let error = response.error { throw ServiceFailure(error) }
+    }
+
+    func acceptServiceResponse(_ response: ServiceResponse) {
+        serviceResponseGeneration += 1
+        guard let snapshot = response.snapshot else { return }
+        serviceConnected = true
+        blockedDomains = snapshot.domains
+        sessionID = snapshot.sessionID ?? sessionID
+        timedSessionStartDate = snapshot.startedAt
+        timedSessionEndDate = snapshot.endsAt
+        bypassSessionStartDate = snapshot.bypassStartedAt
+        bypassEndDate = snapshot.bypassEndsAt
+        if let renewal = snapshot.renewsAt {
+            allowance = BypassAllowance(limit: snapshot.dailyLimit, now: renewal.addingTimeInterval(-86400))
+            allowance?.remaining = snapshot.remaining
+        } else { allowance = nil }
+        serviceEnforced = snapshot.isEnforced
+        lastErrorMessage = response.error ?? snapshot.error
+        updateTimerProgress()
+        refreshStatus()
+        if let error = lastErrorMessage { statusMessage = error }
+    }
+
+    private func startServicePolling() {
+        serviceTimer?.invalidate()
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, !self.servicePollInFlight, !self.isApplying else { return }
+                self.servicePollInFlight = true
+                let generation = self.serviceResponseGeneration
+                defer { self.servicePollInFlight = false }
+                do {
+                    let response = try await Task.detached { try BlockingServiceClient.request(.status) }.value
+                    guard generation == self.serviceResponseGeneration else { return }
+                    self.acceptServiceResponse(response)
+                } catch {
+                    guard generation == self.serviceResponseGeneration else { return }
+                    self.serviceConnected = false
+                    self.serviceEnforced = false
+                    self.statusMessage = "Blocking service unavailable. Install or update it from the Muzzle menu."
+                }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        serviceTimer = timer
     }
 }
 

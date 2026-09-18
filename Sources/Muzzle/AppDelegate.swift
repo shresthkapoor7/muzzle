@@ -1,4 +1,5 @@
 import AppKit
+import MuzzleService
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -70,7 +71,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onRedeemBypass: { [weak self] in self?.redeemExtraBypass() },
             onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() },
             onQuit: { [weak self] in self?.quitWhenInactive() },
-            onCheckForUpdates: { [weak self] in self?.checkForUpdates(manual: true) }
+            onCheckForUpdates: { [weak self] in self?.checkForUpdates(manual: true) },
+            onInstallService: { [weak self] in self?.installBlockingService() }
         )
 
         if !isDebugMode {
@@ -88,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        (isSecondaryInstance || isQuitAuthorized) ? .terminateNow : .terminateCancel
+        (isSecondaryInstance || isQuitAuthorized || blocker.usesPrivilegedService) ? .terminateNow : .terminateCancel
     }
 
     private func checkForUpdates(manual: Bool) {
@@ -150,6 +152,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func deliverUnlockKeyToPoke(workingOn: String? = nil) {
         guard !isDebugMode else { return }
+        if blocker.usesPrivilegedService {
+            guard let token = pokeAPIKeyStore.apiKey() else { blocker.present(error: PokeClient.PokeError.missingAPIKey); return }
+            performServiceDelivery(.deliverKey(token: token, context: workingOn))
+            return
+        }
         pokeClient.sendLockKey(unlockKey, workingOn: workingOn) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self, case let .failure(error) = result else { return }
@@ -247,6 +254,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showBypassMessage("You already have three bypasses available.")
             return
         }
+        if blocker.usesPrivilegedService {
+            guard let token = pokeAPIKeyStore.apiKey() else { blocker.present(error: PokeClient.PokeError.missingAPIKey); showManagementWindow(); return }
+            isRequestingBypass = true
+            performServiceDelivery(.requestExtra(token: token), extraBypass: true)
+            return
+        }
         let request = BypassRequest()
         bypassRequestSessionID = blocker.sessionID
         bypassRequest = request
@@ -273,7 +286,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func redeemExtraBypass() {
         guard !isDebugMode, !blocker.canQuit, !isRequestingBypass else { return }
-        guard bypassRequest != nil, bypassRequestSessionID == blocker.sessionID else {
+        guard blocker.usesPrivilegedService || (bypassRequest != nil && bypassRequestSessionID == blocker.sessionID) else {
             showBypassMessage("Request an extra bypass from Poke first.")
             return
         }
@@ -287,6 +300,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
+        if blocker.usesPrivilegedService {
+            do {
+                try blocker.serviceCommand(.redeemExtra(code: field.stringValue))
+                showBypassMessage("One extra bypass is available.")
+            } catch { blocker.present(error: error); showManagementWindow() }
+            return
+        }
         var request = bypassRequest
         guard request?.redeem(field.stringValue) == true else {
             bypassRequest = request
@@ -332,7 +352,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.icon = MuzzleIcon.alertImage()
         alert.messageText = "What are you working on?"
-        alert.informativeText = "Optional — Muzzle will include this with the new lock key sent to Poke."
+        alert.informativeText = "Optional — Muzzle will include this with the session key sent to Poke."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Continue")
 
@@ -352,7 +372,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func quitWhenInactive() {
-        guard blocker.canQuit else { return }
+        guard blocker.canQuitApp else { return }
         isQuitAuthorized = true
         NSApp.terminate(nil)
     }
@@ -385,7 +405,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.window.makeFirstResponder(field)
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        guard field.stringValue == unlockKey else {
+        guard blocker.usesPrivilegedService || field.stringValue == unlockKey else {
             let invalidAlert = NSAlert()
             invalidAlert.icon = MuzzleIcon.alertImage()
             invalidAlert.messageText = "That key does not match"
@@ -396,10 +416,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         do {
-            try blocker.endProtection()
+            try blocker.endProtection(key: field.stringValue)
             bypassRequest = nil
         } catch {
             blocker.present(error: error)
+        }
+    }
+
+    private func installBlockingService() {
+        do {
+            try BlockingServiceClient.install()
+            try blocker.load()
+        } catch { blocker.present(error: error); showManagementWindow() }
+    }
+
+    private func performServiceDelivery(_ command: ServiceCommand, extraBypass: Bool = false) {
+        Task { @MainActor in
+            defer { if extraBypass { isRequestingBypass = false } }
+            do {
+                let response = try await Task.detached { try BlockingServiceClient.request(command) }.value
+                blocker.acceptServiceResponse(response)
+                if let error = response.error { throw ServiceFailure(error) }
+                if extraBypass { showBypassMessage("Request sent to Poke. Enter the approval code within 15 minutes to add one bypass.") }
+            } catch { blocker.present(error: error); showManagementWindow() }
         }
     }
 

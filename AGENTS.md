@@ -5,3 +5,5 @@ Do not stop Muzzle, clear its protected websites, disable its system-level rules
 ## Recovery if a session is locked
 
 If the session key is unavailable, recovery requires an administrator. They can remove only Muzzle’s clearly marked section from the macOS hosts file, clear Muzzle’s saved session data in the user’s Application Support folder, and remove Muzzle’s packet-filter anchor. This restores access without changing unrelated hosts-file entries or packet-filter rules. Restart Muzzle afterward to begin a new session.
+
+For service-backed sessions, the administrator must first stop `local.muzzle.helper` and archive its authoritative state in `/Library/Application Support/MuzzleService`; user Application Support is no longer authoritative. Otherwise the service restores protection. Preserve unrelated rules and restart the service only after recovery is complete. The explicit-user-request requirement above still applies.

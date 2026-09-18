@@ -13,6 +13,7 @@ final class StatusItemController: NSObject {
     private let onRetrySystemUpdate: () -> Void
     private let onQuit: () -> Void
     private let onCheckForUpdates: () -> Void
+    private let onInstallService: () -> Void
     private let statusItem: NSStatusItem
     private var blockerObservation: AnyCancellable?
 
@@ -26,7 +27,8 @@ final class StatusItemController: NSObject {
         onRedeemBypass: @escaping () -> Void,
         onRetrySystemUpdate: @escaping () -> Void,
         onQuit: @escaping () -> Void,
-        onCheckForUpdates: @escaping () -> Void
+        onCheckForUpdates: @escaping () -> Void,
+        onInstallService: @escaping () -> Void
     ) {
         self.blocker = blocker
         self.isDebugMode = isDebugMode
@@ -38,6 +40,7 @@ final class StatusItemController: NSObject {
         self.onRetrySystemUpdate = onRetrySystemUpdate
         self.onQuit = onQuit
         self.onCheckForUpdates = onCheckForUpdates
+        self.onInstallService = onInstallService
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
@@ -94,7 +97,7 @@ final class StatusItemController: NSObject {
         menu.addItem(makeItem(manageTitle, action: #selector(manage)))
         if blocker.canRetrySystemUpdate {
             menu.addItem(.separator())
-            menu.addItem(makeItem("Retry macOS permission…", action: #selector(retrySystemUpdate)))
+            menu.addItem(makeItem(blocker.usesPrivilegedService ? "Retry service update…" : "Retry macOS permission…", action: #selector(retrySystemUpdate)))
         }
         if blocker.canQuit {
             menu.addItem(.separator())
@@ -117,6 +120,12 @@ final class StatusItemController: NSObject {
         }
 
         menu.addItem(.separator())
+        if blocker.usesPrivilegedService {
+            menu.addItem(makeItem("Install / Update Blocking Service…", action: #selector(installService)))
+            if !blocker.canQuit {
+                menu.addItem(makeItem("Quit Muzzle (blocking continues)", action: #selector(quit)))
+            }
+        }
         menu.addItem(makeItem("Check for Updates…", action: #selector(checkForUpdates)))
         statusItem.menu = menu
     }
@@ -135,4 +144,5 @@ final class StatusItemController: NSObject {
     @objc private func retrySystemUpdate() { onRetrySystemUpdate() }
     @objc private func quit() { onQuit() }
     @objc private func checkForUpdates() { onCheckForUpdates() }
+    @objc private func installService() { onInstallService() }
 }

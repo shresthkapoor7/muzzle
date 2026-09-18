@@ -310,7 +310,7 @@ private struct ManagementView: View {
             if blocker.isApplying {
                 ProgressView()
                     .controlSize(.small)
-                Text("Updating macOS hosts file…")
+                Text("Updating website protection…")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             } else if blocker.isBypassActive {

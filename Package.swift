@@ -5,10 +5,14 @@ let package = Package(
     name: "Muzzle",
     platforms: [.macOS(.v13)],
     products: [
-        .executable(name: "Muzzle", targets: ["Muzzle"])
+        .executable(name: "Muzzle", targets: ["Muzzle"]),
+        .executable(name: "MuzzleHelper", targets: ["MuzzleHelper"])
     ],
     targets: [
-        .executableTarget(name: "Muzzle", path: "Sources/Muzzle"),
-        .testTarget(name: "MuzzleTests", dependencies: ["Muzzle"], path: "Tests/MuzzleTests")
+        .target(name: "MuzzleService", path: "Sources/MuzzleService"),
+        .executableTarget(name: "Muzzle", dependencies: ["MuzzleService"], path: "Sources/Muzzle"),
+        .executableTarget(name: "MuzzleHelper", dependencies: ["MuzzleService"], path: "Sources/MuzzleHelper"),
+        .testTarget(name: "MuzzleTests", dependencies: ["Muzzle", "MuzzleService"], path: "Tests/MuzzleTests"),
+        .testTarget(name: "MuzzleHelperTests", dependencies: ["MuzzleHelper", "MuzzleService"])
     ]
 )
