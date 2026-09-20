@@ -1,9 +1,10 @@
 import AppKit
+import MuzzleService
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let blocker = BlockerController(isDebugMode: DebugMode.isEnabled)
-    private let pokeAPIKeyStore = PokeAPIKeyStore()
+    private lazy var pokeAPIKeyStore = PokeAPIKeyStore()
     private lazy var pokeClient = PokeClient(apiKeyStore: pokeAPIKeyStore)
     private var statusItemController: StatusItemController?
     private var managementWindowController: ManagementWindowController?
@@ -15,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isSecondaryInstance = false
     private var isQuitAuthorized = false
     private let isDebugMode = DebugMode.isEnabled
+    private var isCheckingForUpdates = false
+    private var updateTimer: Timer?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         guard !isDebugMode else { return }
@@ -36,14 +39,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         NSApp.setActivationPolicy(.accessory)
-
-        do {
-            try blocker.load()
-            if blocker.needsSystemReconciliation {
-                try blocker.reconcileSystemState()
+        blocker.onBypassRestoration = { [weak self] event in
+            guard let self, !self.isDebugMode, !self.blocker.isTimedSession else { return }
+            self.pokeClient.sendBypassRestoration(event) { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self, case .failure(let error) = result else { return }
+                    self.blocker.present(error: error)
+                }
             }
-        } catch {
-            blocker.present(error: error)
+        }
+
+        Task { @MainActor in
+            do {
+                try await blocker.load()
+                if blocker.needsSystemReconciliation {
+                    try await blocker.reconcileSystemState()
+                }
+                if !isDebugMode, !blocker.blockedDomains.isEmpty, !blocker.isTimedSession, !blocker.isBypassActive {
+                    requestWorkContextForPokeDelivery()
+                }
+            } catch { blocker.present(error: error) }
         }
 
         if !isDebugMode {
@@ -58,18 +73,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onRequestBypass: { [weak self] in self?.requestExtraBypass() },
             onRedeemBypass: { [weak self] in self?.redeemExtraBypass() },
             onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() },
-            onQuit: { [weak self] in self?.quitWhenInactive() }
+            onQuit: { [weak self] in self?.quitWhenInactive() },
+            onCheckForUpdates: { [weak self] in self?.checkForUpdates(manual: true) }
         )
 
-        if !isDebugMode, !blocker.blockedDomains.isEmpty, !blocker.isTimedSession, !blocker.isBypassActive {
-            DispatchQueue.main.async { [weak self] in
-                self?.requestWorkContextForPokeDelivery()
+        if !isDebugMode {
+            checkForUpdates(manual: false)
+            updateTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.checkForUpdates(manual: false) }
             }
         }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        (isSecondaryInstance || isQuitAuthorized) ? .terminateNow : .terminateCancel
+        (isSecondaryInstance || isQuitAuthorized || blocker.usesPrivilegedService) ? .terminateNow : .terminateCancel
+    }
+
+    private func checkForUpdates(manual: Bool) {
+        guard !isCheckingForUpdates else { return }
+        let defaults = UserDefaults.standard
+        let lastCheckKey = "MuzzleLastSuccessfulUpdateCheck"
+        if !manual, let last = defaults.object(forKey: lastCheckKey) as? Date,
+           Date().timeIntervalSince(last) < 86400 { return }
+        isCheckingForUpdates = true
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        Task { @MainActor in
+            defer { isCheckingForUpdates = false }
+            do {
+                let update = try await UpdateChecker().check(currentVersion: version)
+                if !isDebugMode { defaults.set(Date(), forKey: lastCheckKey) }
+                guard manual || update != nil else { return }
+                let alert = NSAlert()
+                if let update {
+                    alert.messageText = "Muzzle \(update.version) is available"
+                    alert.informativeText = "You’re running \(version). Download the DMG, then install it when your protection session has ended."
+                    alert.addButton(withTitle: "Download Update")
+                    alert.addButton(withTitle: "Later")
+                    alert.addButton(withTitle: "Release Notes")
+                    switch alert.runModal() {
+                    case .alertFirstButtonReturn: NSWorkspace.shared.open(update.downloadURL)
+                    case .alertThirdButtonReturn: NSWorkspace.shared.open(update.releaseURL)
+                    default: break
+                    }
+                } else {
+                    alert.messageText = "Muzzle is up to date"
+                    alert.informativeText = "No newer stable release is available for version \(version)."
+                    alert.runModal()
+                }
+            } catch {
+                guard manual else { return }
+                let alert = NSAlert()
+                alert.messageText = "Couldn’t check for updates"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+            }
+        }
     }
 
     private func showManagementWindow() {
@@ -80,7 +138,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 pokeAPIKeyStore: pokeAPIKeyStore,
                 onProtectionStarted: { [weak self] in self?.startProtectionSession() },
                 onTestPoke: { [weak self] completion in self?.sendPokeConnectionTest(completion: completion) },
-                onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() }
+                onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() },
+                onInstallService: { [weak self] in self?.installBlockingService() }
             )
         }
         managementWindowController?.showWindow(nil)
@@ -90,6 +149,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func deliverUnlockKeyToPoke(workingOn: String? = nil) {
         guard !isDebugMode else { return }
+        if blocker.usesPrivilegedService {
+            guard let token = pokeAPIKeyStore.apiKey() else { blocker.present(error: PokeClient.PokeError.missingAPIKey); return }
+            performServiceDelivery(.deliverKey(token: token, context: workingOn))
+            return
+        }
         pokeClient.sendLockKey(unlockKey, workingOn: workingOn) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self, case let .failure(error) = result else { return }
@@ -116,16 +180,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func retrySystemUpdate() {
-        switch blocker.retryPendingSystemUpdate() {
-        case .none:
-            return
-        case let .protectionStarted(isTimed):
-            if !isDebugMode, !isTimed {
-                startProtectionSession()
-            }
-        case let .bypassStarted(minutes, isTimed):
-            if !isDebugMode, !isTimed {
-                sendBypassToPoke(minutes: minutes)
+        Task { @MainActor in
+            switch await blocker.retryPendingSystemUpdate() {
+            case .none:
+                return
+            case let .protectionStarted(isTimed):
+                if !isDebugMode, !isTimed {
+                    startProtectionSession()
+                }
+            case let .bypassStarted(minutes, isTimed):
+                if !isDebugMode, !isTimed {
+                    sendBypassToPoke(minutes: minutes)
+                }
             }
         }
     }
@@ -168,16 +234,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 continue
             }
 
-            do {
-                try blocker.startBypass(for: minutes)
-                if !isDebugMode, !blocker.isTimedSession {
-                    sendBypassToPoke(minutes: minutes)
+            Task { @MainActor in
+                do {
+                    try await blocker.startBypass(for: minutes)
+                    if !isDebugMode, !blocker.isTimedSession {
+                        sendBypassToPoke(minutes: minutes)
+                    }
+                    return
+                } catch {
+                    blocker.present(error: error)
+                    return
                 }
-                return
-            } catch {
-                blocker.present(error: error)
-                return
             }
+            return
         }
     }
 
@@ -185,6 +254,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !isDebugMode, !blocker.canQuit, !isRequestingBypass else { return }
         guard blocker.remainingBypasses < 3 else {
             showBypassMessage("You already have three bypasses available.")
+            return
+        }
+        if blocker.usesPrivilegedService {
+            guard let token = pokeAPIKeyStore.apiKey() else { blocker.present(error: PokeClient.PokeError.missingAPIKey); showManagementWindow(); return }
+            isRequestingBypass = true
+            performServiceDelivery(.requestExtra(token: token), extraBypass: true)
             return
         }
         let request = BypassRequest()
@@ -213,7 +288,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func redeemExtraBypass() {
         guard !isDebugMode, !blocker.canQuit, !isRequestingBypass else { return }
-        guard bypassRequest != nil, bypassRequestSessionID == blocker.sessionID else {
+        guard blocker.usesPrivilegedService || (bypassRequest != nil && bypassRequestSessionID == blocker.sessionID) else {
             showBypassMessage("Request an extra bypass from Poke first.")
             return
         }
@@ -227,6 +302,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
+        if blocker.usesPrivilegedService {
+            let code = field.stringValue
+            Task { @MainActor in
+                do {
+                    try await blocker.serviceCommand(.redeemExtra(code: code))
+                    showBypassMessage("One extra bypass is available.")
+                } catch { blocker.present(error: error); showManagementWindow() }
+            }
+            return
+        }
         var request = bypassRequest
         guard request?.redeem(field.stringValue) == true else {
             bypassRequest = request
@@ -272,7 +357,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.icon = MuzzleIcon.alertImage()
         alert.messageText = "What are you working on?"
-        alert.informativeText = "Optional — Muzzle will include this with the new lock key sent to Poke."
+        alert.informativeText = "Optional — Muzzle will include this with the session key sent to Poke."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Continue")
 
@@ -292,17 +377,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func quitWhenInactive() {
-        guard blocker.canQuit else { return }
+        guard blocker.canQuitApp else { return }
         isQuitAuthorized = true
         NSApp.terminate(nil)
     }
 
     private func requestEndSession() {
         if isDebugMode {
-            do {
-                try blocker.endProtection()
-            } catch {
-                blocker.present(error: error)
+            Task { @MainActor in
+                do {
+                    try await blocker.endProtection()
+                } catch {
+                    blocker.present(error: error)
+                }
             }
             return
         }
@@ -325,7 +412,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.window.makeFirstResponder(field)
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        guard field.stringValue == unlockKey else {
+        guard blocker.usesPrivilegedService || field.stringValue == unlockKey else {
             let invalidAlert = NSAlert()
             invalidAlert.icon = MuzzleIcon.alertImage()
             invalidAlert.messageText = "That key does not match"
@@ -335,11 +422,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let key = field.stringValue
+        Task { @MainActor in
+            do {
+                try await blocker.endProtection(key: key)
+                bypassRequest = nil
+            } catch {
+                blocker.present(error: error)
+            }
+        }
+    }
+
+    private func installBlockingService() {
         do {
-            try blocker.endProtection()
-            bypassRequest = nil
-        } catch {
-            blocker.present(error: error)
+            try BlockingServiceClient.install()
+            Task { @MainActor in
+                do { try await blocker.load() }
+                catch { blocker.present(error: error); showManagementWindow() }
+            }
+        } catch { blocker.present(error: error); showManagementWindow() }
+    }
+
+    private func performServiceDelivery(_ command: ServiceCommand, extraBypass: Bool = false) {
+        Task { @MainActor in
+            defer { if extraBypass { isRequestingBypass = false } }
+            do {
+                try await blocker.serviceCommand(command)
+                if extraBypass { showBypassMessage("Request sent to Poke. Enter the approval code within 15 minutes to add one bypass.") }
+            } catch { blocker.present(error: error); showManagementWindow() }
         }
     }
 

@@ -9,7 +9,8 @@ final class ManagementWindowController: NSWindowController {
         pokeAPIKeyStore: PokeAPIKeyStore,
         onProtectionStarted: @escaping () -> Void,
         onTestPoke: @escaping (@escaping (Result<Void, Error>) -> Void) -> Void,
-        onRetrySystemUpdate: @escaping () -> Void
+        onRetrySystemUpdate: @escaping () -> Void,
+        onInstallService: @escaping () -> Void
     ) {
         let rootView = ManagementView(
             blocker: blocker,
@@ -17,9 +18,12 @@ final class ManagementWindowController: NSWindowController {
             pokeAPIKeyStore: pokeAPIKeyStore,
             onProtectionStarted: onProtectionStarted,
             onTestPoke: onTestPoke,
-            onRetrySystemUpdate: onRetrySystemUpdate
+            onRetrySystemUpdate: onRetrySystemUpdate,
+            onInstallService: onInstallService
         )
         let hostingController = NSHostingController(rootView: rootView)
+        // Window size is user-controlled; changing form content must not resize it.
+        hostingController.sizingOptions = []
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Muzzle"
         window.setContentSize(NSSize(width: 560, height: 720))
@@ -42,6 +46,7 @@ private struct ManagementView: View {
     let onProtectionStarted: () -> Void
     let onTestPoke: (@escaping (Result<Void, Error>) -> Void) -> Void
     let onRetrySystemUpdate: () -> Void
+    let onInstallService: () -> Void
     @State private var domainInput = ""
     @State private var blockMode = BlockMode.timed
     @State private var timedMinutesInput = "30"
@@ -50,11 +55,16 @@ private struct ManagementView: View {
     @State private var pokeAPIKeyError: String?
     @State private var isTestingPoke = false
     @State private var didSendPokeTest = false
+    @State private var pokeKeyDisclosure = PokeKeyDisclosureState()
+    @FocusState private var isWebsiteFocused: Bool
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                if blocker.usesPrivilegedService && !blocker.serviceConnected {
+                    serviceSetupPanel
+                }
                 if !isDebugMode {
                     pokeAPIKeyPanel
                 }
@@ -66,6 +76,11 @@ private struct ManagementView: View {
             .padding(24)
         }
         .frame(minWidth: 460, minHeight: 460)
+        .defaultFocus($isWebsiteFocused, true)
+        .onAppear {
+            // Wait for the hosting window to attach before choosing its first field.
+            DispatchQueue.main.async { isWebsiteFocused = true }
+        }
         .alert(
             "Couldn’t update website blocking",
             isPresented: Binding(
@@ -94,19 +109,48 @@ private struct ManagementView: View {
     }
 
     private var pokeAPIKeyPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Poke API key")
-                    .font(.system(size: 15, weight: .semibold))
-                Spacer()
-                Label(
-                    pokeAPIKeyStore.isConfigured ? "Saved in Keychain" : "Required for untimed locks",
-                    systemImage: pokeAPIKeyStore.isConfigured ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-                )
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(pokeAPIKeyStore.isConfigured ? .green : .orange)
+        let expanded = pokeKeyDisclosure.isExpanded(isConfigured: pokeAPIKeyStore.isConfigured)
+        return VStack(alignment: .leading, spacing: 12) {
+            Button {
+                pokeKeyDisclosure.toggle(isConfigured: pokeAPIKeyStore.isConfigured)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 12)
+                        .accessibilityHidden(true)
+                    Text("Poke API key")
+                        .font(.system(size: 15, weight: .semibold))
+                    Spacer()
+                    Label(
+                        pokeAPIKeyStore.isConfigured ? "Saved in Keychain" : "Required for untimed locks",
+                        systemImage: pokeAPIKeyStore.isConfigured ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                    )
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(pokeAPIKeyStore.isConfigured ? .green : .orange)
+                }
+                .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Poke API key")
+            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+            .accessibilityHint("Show or hide API key controls")
 
+            if expanded {
+                pokeAPIKeyControls
+            }
+        }
+        .onChange(of: pokeAPIKeyStore.isConfigured) { configured in
+            pokeKeyDisclosure.configurationChanged(isConfigured: configured)
+        }
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var pokeAPIKeyControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 SecureField(
                     pokeAPIKeyStore.isConfigured ? "Replace saved API key" : "Paste your Poke API key",
@@ -142,9 +186,6 @@ private struct ManagementView: View {
                 }
             }
         }
-        .padding(16)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var header: some View {
@@ -171,28 +212,46 @@ private struct ManagementView: View {
         }
     }
 
+    private var serviceSetupPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Set up background blocking")
+                .font(.system(size: 15, weight: .semibold))
+            Text("Administrator approval installs or repairs Muzzle’s background service. It keeps protection and bypass deadlines working when the app is closed.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            Button("Set Up Blocking Service…", action: onInstallService)
+                .buttonStyle(.borderedProminent)
+                .disabled(blocker.isApplying)
+        }
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
     private var setupPanel: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(blocker.blockedDomains.isEmpty ? "Start protection" : "Add a protected website")
                 .font(.system(size: 15, weight: .semibold))
 
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
-                GridRow(alignment: .center) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 12) {
                     formLabel("Website")
                     HStack(spacing: 8) {
                         TextField("example.com", text: $domainInput)
                             .textFieldStyle(.roundedBorder)
                             .accessibilityLabel("Website domain")
+                            .focused($isWebsiteFocused)
                             .onSubmit(addDomain)
                         Button("Block", action: addDomain)
                             .buttonStyle(.borderedProminent)
                             .disabled(isBlockDisabled)
                             .accessibilityHint("Adds this website to the hosts-file block list")
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 if blocker.blockedDomains.isEmpty {
-                    GridRow(alignment: .center) {
+                    HStack(alignment: .center, spacing: 12) {
                         formLabel("Session")
                         HStack(spacing: 10) {
                             Picker("Block duration", selection: $blockMode) {
@@ -202,9 +261,9 @@ private struct ManagementView: View {
                             }
                             .labelsHidden()
                             .pickerStyle(.segmented)
-                            .frame(width: 250)
+                            .frame(width: 220, alignment: .leading)
 
-                            if blockMode == .timed {
+                            HStack(spacing: 6) {
                                 TextField("30", text: $timedMinutesInput)
                                     .textFieldStyle(.roundedBorder)
                                     .frame(width: 56)
@@ -215,10 +274,16 @@ private struct ManagementView: View {
                                     .font(.system(size: 12))
                                     .foregroundStyle(.secondary)
                             }
+                            // Preserve row width and height when the duration is irrelevant.
+                            .opacity(blockMode == .timed ? 1 : 0)
+                            .disabled(blockMode != .timed)
+                            .allowsHitTesting(blockMode == .timed)
+                            .accessibilityHidden(blockMode != .timed)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    GridRow(alignment: .center) {
+                    HStack(alignment: .center, spacing: 12) {
                         formLabel("Bypasses")
                         HStack(spacing: 10) {
                             Picker("Bypasses allowed", selection: $allowedBypasses) {
@@ -228,11 +293,12 @@ private struct ManagementView: View {
                             }
                             .labelsHidden()
                             .pickerStyle(.segmented)
-                            .frame(width: 152)
+                            .frame(width: 152, alignment: .leading)
                             Text("allowed")
                                 .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
@@ -249,6 +315,8 @@ private struct ManagementView: View {
                 )
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                    .lineLimit(2, reservesSpace: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             Text("Use a domain such as youtube.com; its www version is included too.")
                 .font(.system(size: 12))
@@ -263,7 +331,7 @@ private struct ManagementView: View {
         Text(title)
             .font(.system(size: 12, weight: .medium))
             .foregroundStyle(.secondary)
-            .frame(width: 80, alignment: .trailing)
+            .frame(width: 72, alignment: .leading)
     }
 
     private var blockedList: some View {
@@ -310,7 +378,7 @@ private struct ManagementView: View {
             if blocker.isApplying {
                 ProgressView()
                     .controlSize(.small)
-                Text("Updating macOS hosts file…")
+                Text("Updating website protection…")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             } else if blocker.isBypassActive {
@@ -345,17 +413,23 @@ private struct ManagementView: View {
             pokeAPIKeyError = "Save a Poke API key before starting an untimed lock, so Muzzle can send the unlock key to Poke."
             return
         }
-        blocker.add(
-            domainInput,
-            timedDurationMinutes: wasInactive && blockMode == .timed ? timedMinutes : nil,
-            allowedBypasses: wasInactive ? allowedBypasses : 1
-        )
-        if wasInactive, !blocker.blockedDomains.isEmpty {
-            if blockMode == .untilEnded {
-                onProtectionStarted()
+        let domain = domainInput
+        let minutes = wasInactive && blockMode == .timed ? timedMinutes : nil
+        let limit = wasInactive ? allowedBypasses : 1
+        let isUntimed = blockMode == .untilEnded
+        Task { @MainActor in
+            await blocker.add(
+                domain,
+                timedDurationMinutes: minutes,
+                allowedBypasses: limit
+            )
+            if wasInactive, !blocker.blockedDomains.isEmpty {
+                if isUntimed {
+                    onProtectionStarted()
+                }
             }
+            if domainInput == domain { domainInput = "" }
         }
-        domainInput = ""
     }
 
     private var timedMinutes: Int? {
@@ -373,6 +447,7 @@ private struct ManagementView: View {
     private var isBlockDisabled: Bool {
         domainInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || blocker.isApplying
+            || (blocker.usesPrivilegedService && !blocker.serviceConnected)
             || (blocker.blockedDomains.isEmpty && blockMode == .timed && timedMinutes == nil)
             || (blocker.blockedDomains.isEmpty && blockMode == .untilEnded && !isDebugMode && !pokeAPIKeyStore.isConfigured)
     }

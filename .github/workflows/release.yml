@@ -36,6 +36,7 @@ jobs:
       - name: Build app
         env:
           MUZZLE_ARCH: ${{ matrix.architecture }}
+          MUZZLE_VERSION: ${{ github.ref_name }}
         run: scripts/build-app.sh
 
       - name: Package DMG
