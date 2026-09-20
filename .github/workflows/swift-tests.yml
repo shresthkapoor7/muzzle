@@ -23,4 +23,6 @@ jobs:
           scripts/build-app.sh
           codesign --verify --deep --strict dist/Muzzle.app
       - name: Validate root-owned staging with disposable fixtures
+        # Never elevate PR merge code; repository pushes retain privileged coverage.
+        if: github.event_name == 'push' && github.repository == 'shresthkapoor7/muzzle'
         run: sudo env DEVELOPER_DIR="$DEVELOPER_DIR" MUZZLE_TEST_APP="$GITHUB_WORKSPACE/dist/Muzzle.app" /usr/bin/swift test --skip-build --filter StagingTests
