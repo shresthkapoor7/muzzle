@@ -2,6 +2,19 @@
 
 A native macOS menu-bar website blocker with a privileged background service.
 
+## Opening a downloaded release
+
+Muzzle releases are ad-hoc signed, not Apple-notarized. macOS may show **“Muzzle” Not Opened** and say Apple could not verify that it is free of malware. This warning means Apple has not verified the app; it is not itself a malware detection or a guarantee that the download is safe.
+
+If you downloaded Muzzle from [this repository’s GitHub Releases](https://github.com/shresthkapoor7/muzzle/releases) and trust it:
+
+1. Click **Done** in the warning, not **Move to Trash**.
+2. Open **System Settings → Privacy & Security**.
+3. Scroll down to the message about Muzzle and click **Open Anyway**.
+4. Authenticate and confirm opening the app when prompted.
+
+This allows this specific app; do not disable Gatekeeper globally. See [Apple’s instructions for opening unnotarized apps](https://support.apple.com/102445). Avoiding this warning for downloaded releases requires Developer ID signing and Apple notarization in the release workflow.
+
 ## Build and setup
 
 ```sh
