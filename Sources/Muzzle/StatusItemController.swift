@@ -41,6 +41,8 @@ final class StatusItemController: NSObject {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
+        // Keep the user's menu-bar placement across launches, separately for debug builds.
+        statusItem.autosaveName = isDebugMode ? "MuzzleDebugStatusItem" : "MuzzleStatusItem"
         updateStatusButton()
         rebuildMenu()
         observeBlocker()
