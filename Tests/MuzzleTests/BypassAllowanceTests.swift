@@ -2,6 +2,15 @@ import XCTest
 @testable import Muzzle
 
 final class BypassAllowanceTests: XCTestCase {
+    func testUnusedBypassesDoNotAccumulateAtDailyRenewal() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        var allowance = BypassAllowance(limit: 2, now: now)
+
+        XCTAssertTrue(allowance.renewIfNeeded(now: now.addingTimeInterval(86400)))
+        XCTAssertEqual(allowance.remaining, 2)
+        XCTAssertEqual(allowance.renewsAt, now.addingTimeInterval(2 * 86400))
+    }
+
     func testRenewsAt24HoursWithoutAccumulatingMissedDays() {
         let now = Date()
         var allowance = BypassAllowance(limit: 2, now: now).consumingOne().consumingOne()

@@ -56,6 +56,21 @@ final class ServiceSessionTests: XCTestCase {
         XCTAssertNil(service.snapshot().error)
     }
 
+    func testUnusedBypassesDoNotAccumulateAtDailyRenewal() throws {
+        var saved = ProtectedState()
+        let service = SessionEngine(persist: { saved = $0 }, apply: { _ in })
+        try service.handle(.add(domain: "example.com", minutes: nil, allowance: 2), now: now)
+
+        service.tick(now: now.addingTimeInterval(86400))
+        XCTAssertEqual(service.snapshot().remaining, 2)
+        XCTAssertEqual(service.snapshot().renewsAt, now.addingTimeInterval(2 * 86400))
+        XCTAssertTrue(service.snapshot().isEnforced)
+
+        let restarted = SessionEngine(state: saved, persist: { _ in }, apply: { _ in })
+        XCTAssertEqual(restarted.snapshot().remaining, 2)
+        XCTAssertEqual(restarted.snapshot().renewsAt, now.addingTimeInterval(2 * 86400))
+    }
+
     func testDailyRenewalDoesNotEndProtectionOrAccumulateMissedDays() throws {
         let service = SessionEngine(persist: { _ in }, apply: { _ in })
         try service.handle(.add(domain: "example.com", minutes: nil, allowance: 2), now: now)

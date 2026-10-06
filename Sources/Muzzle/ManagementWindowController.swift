@@ -59,21 +59,27 @@ private struct ManagementView: View {
     @FocusState private var isWebsiteFocused: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                if blocker.usesPrivilegedService && !blocker.serviceConnected {
-                    serviceSetupPanel
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                    if blocker.usesPrivilegedService && !blocker.serviceConnected {
+                        serviceSetupPanel
+                    }
+                    if !isDebugMode {
+                        pokeAPIKeyPanel
+                    }
+                    setupPanel
+                    blockedList
                 }
-                if !isDebugMode {
-                    pokeAPIKeyPanel
-                }
-                setupPanel
-                blockedList
-                footer
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(24)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(24)
+            footer
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
         }
         .frame(minWidth: 460, minHeight: 460)
         .defaultFocus($isWebsiteFocused, true)
