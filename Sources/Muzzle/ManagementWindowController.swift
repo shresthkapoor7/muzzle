@@ -72,13 +72,15 @@ private struct ManagementView: View {
                     }
                     setupPanel
                     blockedList
-                    Toggle("Play a sound with the 2-minute bypass reminder", isOn: $bypassWarningSound)
-                        .font(.system(size: 12))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(24)
             }
-            footer
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Play a sound with the 2-minute bypass reminder", isOn: $bypassWarningSound)
+                    .font(.system(size: 12))
+                footer
+            }
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
