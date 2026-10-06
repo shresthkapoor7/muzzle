@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let isDebugMode = DebugMode.isEnabled
     private var isCheckingForUpdates = false
     private var updateTimer: Timer?
+    private var bypassWarningController: BypassWarningController?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         guard !isDebugMode else { return }
@@ -39,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         NSApp.setActivationPolicy(.accessory)
+        bypassWarningController = BypassWarningController(blocker: blocker)
         blocker.onBypassRestoration = { [weak self] event in
             guard let self, !self.isDebugMode, !self.blocker.isTimedSession else { return }
             self.pokeClient.sendBypassRestoration(event) { [weak self] result in

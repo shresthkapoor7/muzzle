@@ -47,6 +47,7 @@ private struct ManagementView: View {
     let onTestPoke: (@escaping (Result<Void, Error>) -> Void) -> Void
     let onRetrySystemUpdate: () -> Void
     let onInstallService: () -> Void
+    @AppStorage(BypassWarningController.soundPreference) private var bypassWarningSound = false
     @State private var domainInput = ""
     @State private var blockMode = BlockMode.timed
     @State private var timedMinutesInput = "30"
@@ -71,6 +72,8 @@ private struct ManagementView: View {
                     }
                     setupPanel
                     blockedList
+                    Toggle("Play a sound with the 2-minute bypass reminder", isOn: $bypassWarningSound)
+                        .font(.system(size: 12))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(24)
