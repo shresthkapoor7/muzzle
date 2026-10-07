@@ -47,6 +47,7 @@ private struct ManagementView: View {
     let onTestPoke: (@escaping (Result<Void, Error>) -> Void) -> Void
     let onRetrySystemUpdate: () -> Void
     let onInstallService: () -> Void
+    @AppStorage(BypassWarningController.soundPreference) private var bypassWarningSound = false
     @State private var domainInput = ""
     @State private var blockMode = BlockMode.timed
     @State private var timedMinutesInput = "30"
@@ -59,21 +60,31 @@ private struct ManagementView: View {
     @FocusState private var isWebsiteFocused: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                if blocker.usesPrivilegedService && !blocker.serviceConnected {
-                    serviceSetupPanel
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                    if blocker.usesPrivilegedService && !blocker.serviceConnected {
+                        serviceSetupPanel
+                    }
+                    if !isDebugMode {
+                        pokeAPIKeyPanel
+                    }
+                    setupPanel
+                    blockedList
                 }
-                if !isDebugMode {
-                    pokeAPIKeyPanel
-                }
-                setupPanel
-                blockedList
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(24)
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Play a sound with the 2-minute bypass reminder", isOn: $bypassWarningSound)
+                    .font(.system(size: 12))
                 footer
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(24)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
         }
         .frame(minWidth: 460, minHeight: 460)
         .defaultFocus($isWebsiteFocused, true)
