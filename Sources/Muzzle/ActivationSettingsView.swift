@@ -6,33 +6,35 @@ struct ActivationSettingsView: View {
     @State private var expanded = false
 
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Keyboard shortcut").font(.headline)
-                HStack {
-                    ShortcutRecorder(shortcut: $preferences.settings.shortcut)
-                        .frame(height: 28)
-                    Button("Clear") { preferences.settings.shortcut = nil }
-                        .disabled(preferences.settings.shortcut == nil)
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsPanelHeader(title: "Shortcuts", isExpanded: expanded,
+                                toggle: { expanded.toggle() }) { EmptyView() }
+            if expanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Keyboard shortcut").font(.headline)
+                    HStack {
+                        ShortcutRecorder(shortcut: $preferences.settings.shortcut)
+                            .frame(height: 28)
+                        Button("Clear") { preferences.settings.shortcut = nil }
+                            .disabled(preferences.settings.shortcut == nil)
+                    }
+                    Text("Click to record, then press a key with Control, Option, or Command. Escape cancels. Works while Muzzle is running.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    if let error = preferences.registrationError {
+                        Text(error).font(.system(size: 12)).foregroundStyle(.red)
+                    }
+                    ActivationSessionFields(session: $preferences.settings.keyboardSession)
+                    Divider().padding(.vertical, 4)
+                    Toggle("Enable Control-click on the menu-bar icon", isOn: $preferences.settings.controlClickEnabled)
+                    Text("Hold Control and click Muzzle to start the session below using your saved websites.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    if preferences.settings.controlClickEnabled {
+                        ActivationSessionFields(session: $preferences.settings.controlClickSession)
+                    }
+                    Text("Starts protection for your saved websites. An active session stays unchanged. Indefinite sessions require a Poke API key.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
-                Text("Click to record, then press a key with Control, Option, or Command. Escape cancels. Works while Muzzle is running.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-                if let error = preferences.registrationError {
-                    Text(error).font(.system(size: 12)).foregroundStyle(.red)
-                }
-                ActivationSessionFields(session: $preferences.settings.keyboardSession)
-                Divider().padding(.vertical, 4)
-                Toggle("Enable Control-click on the menu-bar icon", isOn: $preferences.settings.controlClickEnabled)
-                Text("Hold Control and click Muzzle to start the session below using your saved websites.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-                if preferences.settings.controlClickEnabled {
-                    ActivationSessionFields(session: $preferences.settings.controlClickSession)
-                }
-                Text("Starts protection for your saved websites. An active session stays unchanged. Indefinite sessions require a Poke API key.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }.padding(.top, 12)
-        } label: {
-            Text("Shortcuts").font(.system(size: 15, weight: .semibold))
+            }
         }
         .padding(16)
         .background(Color(nsColor: .controlBackgroundColor))

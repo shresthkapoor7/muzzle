@@ -125,34 +125,34 @@ private struct ManagementView: View {
     }
 
     private var savedWebsitesPanel: some View {
-        DisclosureGroup(isExpanded: $savedWebsitesExpanded) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Included every time you start protection, manually or with a shortcut. Changes here apply to future sessions.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-                HStack {
-                    TextField("example.com", text: $savedWebsiteInput)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("Website to save")
-                        .onSubmit(saveWebsite)
-                    Button("Save", action: saveWebsite)
-                        .disabled(savedWebsiteInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-                ForEach(savedWebsites.domains, id: \.self) { domain in
-                    HStack {
-                        Text(domain)
-                        Spacer()
-                        Button("Remove") { savedWebsites.remove(domain) }
-                            .accessibilityLabel("Remove \(domain) from saved websites")
-                    }
-                }
-                Text("Saved locally on this Mac.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }.padding(.top, 12)
-        } label: {
-            HStack {
-                Text("Saved websites").font(.system(size: 15, weight: .semibold))
-                Spacer()
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsPanelHeader(title: "Saved websites", isExpanded: savedWebsitesExpanded,
+                                toggle: { savedWebsitesExpanded.toggle() }) {
                 Text("\(savedWebsites.domains.count) saved").foregroundStyle(.secondary)
+            }
+            if savedWebsitesExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Included every time you start protection, manually or with a shortcut. Changes here apply to future sessions.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    HStack {
+                        TextField("example.com", text: $savedWebsiteInput)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("Website to save")
+                            .onSubmit(saveWebsite)
+                        Button("Save", action: saveWebsite)
+                            .disabled(savedWebsiteInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    ForEach(savedWebsites.domains, id: \.self) { domain in
+                        HStack {
+                            Text(domain)
+                            Spacer()
+                            Button("Remove") { savedWebsites.remove(domain) }
+                                .accessibilityLabel("Remove \(domain) from saved websites")
+                        }
+                    }
+                    Text("Saved locally on this Mac.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
             }
         }
         .padding(16)
@@ -170,31 +170,15 @@ private struct ManagementView: View {
     private var pokeAPIKeyPanel: some View {
         let expanded = pokeKeyDisclosure.isExpanded(isConfigured: pokeAPIKeyStore.isConfigured)
         return VStack(alignment: .leading, spacing: 12) {
-            Button {
+            SettingsPanelHeader(title: "Poke API key", isExpanded: expanded, toggle: {
                 pokeKeyDisclosure.toggle(isConfigured: pokeAPIKeyStore.isConfigured)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(width: 12)
-                        .accessibilityHidden(true)
-                    Text("Poke API key")
-                        .font(.system(size: 15, weight: .semibold))
-                    Spacer()
-                    Label(
-                        pokeAPIKeyStore.isConfigured ? "Saved in Keychain" : "Required for untimed locks",
-                        systemImage: pokeAPIKeyStore.isConfigured ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-                    )
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(pokeAPIKeyStore.isConfigured ? .green : .orange)
-                }
-                .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-                .contentShape(Rectangle())
+            }) {
+                Label(
+                    pokeAPIKeyStore.isConfigured ? "Saved in Keychain" : "Required for untimed locks",
+                    systemImage: pokeAPIKeyStore.isConfigured ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(pokeAPIKeyStore.isConfigured ? .green : .orange)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Poke API key")
-            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
-            .accessibilityHint("Show or hide API key controls")
 
             if expanded {
                 pokeAPIKeyControls
