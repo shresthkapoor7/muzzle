@@ -21,7 +21,7 @@ final class ManagementWindowController: NSWindowController {
             onRetrySystemUpdate: onRetrySystemUpdate,
             onInstallService: onInstallService
         )
-        let hostingController = NSHostingController(rootView: rootView)
+        let hostingController = ManagementHostingController(rootView: rootView)
         // Window size is user-controlled; changing form content must not resize it.
         hostingController.sizingOptions = []
         let window = NSWindow(contentViewController: hostingController)
@@ -36,6 +36,19 @@ final class ManagementWindowController: NSWindowController {
 
     required init?(coder: NSCoder) {
         fatalError("Muzzle windows are created in code.")
+    }
+}
+
+/// Keep text editing and keyboard focus, without AppKit's colored outer focus ring.
+private final class ManagementHostingController<Content: View>: NSHostingController<Content> {
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        removeTextFieldFocusRings(in: view)
+    }
+
+    private func removeTextFieldFocusRings(in view: NSView) {
+        if let field = view as? NSTextField { field.focusRingType = .none }
+        for child in view.subviews { removeTextFieldFocusRings(in: child) }
     }
 }
 
