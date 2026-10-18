@@ -16,7 +16,6 @@ final class StatusItemController: NSObject {
     private let onControlClick: () -> Void
     private let controlClickEnabled: () -> Bool
     private let statusItem: NSStatusItem
-    private var controlClickMonitor: StatusControlClickMonitor?
     private var blockerObservation: AnyCancellable?
 
     init(
@@ -51,14 +50,7 @@ final class StatusItemController: NSObject {
         // Keep the user's menu-bar placement across launches, separately for debug builds.
         statusItem.autosaveName = isDebugMode ? "MuzzleDebugStatusItem" : "MuzzleStatusItem"
         updateStatusButton()
-        statusItem.button?.target = self
-        statusItem.button?.action = #selector(clicked)
-        statusItem.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
-        if let button = statusItem.button {
-            controlClickMonitor = StatusControlClickMonitor(
-                button: button, isEnabled: controlClickEnabled, activate: onControlClick
-            )
-        }
+        statusItem.menu = makeMenu()
         observeBlocker()
     }
 
@@ -66,6 +58,7 @@ final class StatusItemController: NSObject {
         blockerObservation = blocker.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
                 self?.updateStatusButton()
+                self?.statusItem.menu = self?.makeMenu()
             }
         }
     }
@@ -86,17 +79,6 @@ final class StatusItemController: NSObject {
         button.imagePosition = .imageOnly
         button.title = ""
         button.toolTip = isBlocking ? "Muzzle: active" : blocker.isBypassActive ? "Muzzle: bypass active" : "Muzzle: inactive"
-    }
-
-    @objc private func clicked() {
-        if Self.shouldActivateOnClick(enabled: controlClickEnabled(),
-                                      modifiers: NSApp.currentEvent?.modifierFlags ?? []) {
-            onControlClick()
-            return
-        }
-        guard let button = statusItem.button else { return }
-        let menu = makeMenu()
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
     }
 
     static func shouldActivateOnClick(enabled: Bool, modifiers: NSEvent.ModifierFlags) -> Bool {
