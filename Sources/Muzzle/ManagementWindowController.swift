@@ -147,6 +147,7 @@ private struct ManagementView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Included every time you start protection, manually or with a shortcut. Changes here apply to future sessions.")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     HStack {
                         TextField("example.com", text: $savedWebsiteInput)
                             .textFieldStyle(.roundedBorder)
@@ -165,6 +166,7 @@ private struct ManagementView: View {
                     }
                     Text("Saved locally on this Mac.")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -371,7 +373,7 @@ private struct ManagementView: View {
                 )
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                    .lineLimit(2, reservesSpace: true)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             Text("Use a domain such as youtube.com; its www version is included too.")

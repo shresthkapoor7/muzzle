@@ -20,19 +20,23 @@ struct ActivationSettingsView: View {
                     }
                     Text("Click to record, then press a key with Control, Option, or Command. Escape cancels. Works while Muzzle is running.")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let error = preferences.registrationError {
                         Text(error).font(.system(size: 12)).foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                     ActivationSessionFields(session: $preferences.settings.keyboardSession)
                     Divider().padding(.vertical, 4)
                     Toggle("Enable Control-click on the menu-bar icon", isOn: $preferences.settings.controlClickEnabled)
                     Text("Hold Control and click Muzzle to start the session below using your saved websites.")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     if preferences.settings.controlClickEnabled {
                         ActivationSessionFields(session: $preferences.settings.controlClickSession)
                     }
                     Text("Starts protection for your saved websites. An active session stays unchanged. Indefinite sessions require a Poke API key.")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -61,6 +65,7 @@ struct ActivationSessionFields: View {
                 if session.duration == nil {
                     Text("Enter a valid positive whole number of minutes.")
                         .font(.system(size: 12)).foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Picker("Bypasses allowed", selection: $session.bypasses) {
