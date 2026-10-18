@@ -8,7 +8,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var pokeClient = PokeClient(apiKeyStore: pokeAPIKeyStore)
     private var activationHotKey: ActivationHotKey?
     private var isStartingFromShortcut = false
-    private var didLoadSession = false
     private var statusItemController: StatusItemController?
     private var managementWindowController: ManagementWindowController?
     private var workContextAlert: NSAlert?
@@ -57,7 +56,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             do {
                 try await blocker.load()
-                didLoadSession = true
                 if blocker.needsSystemReconciliation {
                     try await blocker.reconcileSystemState()
                 }
@@ -150,22 +148,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func activateSavedWebsites(using session: ActivationSession) {
-        guard didLoadSession, !isStartingFromShortcut, !blocker.isApplying,
-              blocker.blockedDomains.isEmpty, !blocker.canRetrySystemUpdate else { return }
-        let websites = SavedWebsites().domains
-        guard !websites.isEmpty, session.isValid,
-              isDebugMode || session.timed || pokeAPIKeyStore.isConfigured,
-              !blocker.usesPrivilegedService || blocker.serviceConnected else {
-            showManagementWindow()
-            let alert = NSAlert()
-            alert.messageText = "Finish setting up your shortcut"
-            alert.informativeText = "Save at least one website and a valid session duration. Indefinite sessions need a Poke API key, and the blocking service must be available."
-            alert.runModal()
-            return
-        }
+        guard !isStartingFromShortcut else { return }
         isStartingFromShortcut = true
         Task { @MainActor in
             defer { isStartingFromShortcut = false }
+            do {
+                guard try await blocker.prepareForShortcutActivation() else {
+                    showManagementWindow()
+                    return
+                }
+            } catch {
+                blocker.present(error: error)
+                showManagementWindow()
+                return
+            }
+            let websites = SavedWebsites().domains
+            guard !websites.isEmpty, session.isValid,
+                  isDebugMode || session.timed || pokeAPIKeyStore.isConfigured else {
+                showManagementWindow()
+                let alert = NSAlert()
+                alert.messageText = "Finish setting up your shortcut"
+                alert.informativeText = "Save at least one website and a valid session duration. Indefinite sessions need a Poke API key."
+                alert.runModal()
+                return
+            }
             await blocker.addWebsites(websites, timedDurationMinutes: session.timed ? session.duration : nil,
                                       allowedBypasses: session.bypasses)
             if !blocker.blockedDomains.isEmpty, !session.timed { startProtectionSession() }

@@ -132,6 +132,17 @@ final class BlockerController: ObservableObject {
         refreshStatus()
     }
 
+    /// Refresh authoritative state on every activation, including after a failed startup load.
+    func prepareForShortcutActivation() async throws -> Bool {
+        guard !isApplying else { return false }
+        if usesPrivilegedService {
+            try await serviceCommand(.status)
+        } else {
+            try await load()
+        }
+        return blockedDomains.isEmpty && !isBypassActive && !canRetrySystemUpdate
+    }
+
     /// Validate the entire selection before starting; stop on an application failure.
     func addWebsites(_ inputs: [String], timedDurationMinutes: Int?, allowedBypasses: Int) async {
         do {

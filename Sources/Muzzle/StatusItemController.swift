@@ -52,7 +52,7 @@ final class StatusItemController: NSObject {
         updateStatusButton()
         statusItem.button?.target = self
         statusItem.button?.action = #selector(clicked)
-        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        statusItem.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
         observeBlocker()
     }
 
