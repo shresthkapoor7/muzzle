@@ -132,6 +132,18 @@ final class BlockerController: ObservableObject {
         refreshStatus()
     }
 
+    /// Validate the entire selection before starting; stop on an application failure.
+    func addWebsites(_ inputs: [String], timedDurationMinutes: Int?, allowedBypasses: Int) async {
+        do {
+            let domains = try Array(Set(inputs.map { try DomainValidator.normalizedDomain(from: $0) })).sorted()
+            clearError()
+            for domain in domains where !blockedDomains.contains(domain) {
+                await add(domain, timedDurationMinutes: timedDurationMinutes, allowedBypasses: allowedBypasses)
+                if lastErrorMessage != nil { return }
+            }
+        } catch { present(error: error) }
+    }
+
     func add(
         _ rawValue: String,
         timedDurationMinutes: Int? = nil,
