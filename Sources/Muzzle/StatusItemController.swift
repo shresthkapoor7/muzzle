@@ -16,6 +16,7 @@ final class StatusItemController: NSObject {
     private let onControlClick: () -> Void
     private let controlClickEnabled: () -> Bool
     private let statusItem: NSStatusItem
+    private var controlClickMonitor: StatusControlClickMonitor?
     private var blockerObservation: AnyCancellable?
 
     init(
@@ -53,6 +54,11 @@ final class StatusItemController: NSObject {
         statusItem.button?.target = self
         statusItem.button?.action = #selector(clicked)
         statusItem.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
+        if let button = statusItem.button {
+            controlClickMonitor = StatusControlClickMonitor(
+                button: button, isEnabled: controlClickEnabled, activate: onControlClick
+            )
+        }
         observeBlocker()
     }
 
