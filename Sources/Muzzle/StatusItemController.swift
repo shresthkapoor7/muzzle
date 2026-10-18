@@ -16,6 +16,9 @@ final class StatusItemController: NSObject {
     private let onControlClick: () -> Void
     private let controlClickEnabled: () -> Bool
     private let statusItem: NSStatusItem
+    private lazy var menuActivation = StatusMenuActivation(
+        isEnabled: controlClickEnabled, activate: onControlClick
+    )
     private var blockerObservation: AnyCancellable?
 
     init(
@@ -87,6 +90,7 @@ final class StatusItemController: NSObject {
 
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
+        menu.delegate = menuActivation
         let presentation = StatusMenuPresentation(usesPrivilegedService: blocker.usesPrivilegedService,
                                                   serviceConnected: blocker.serviceConnected, canQuit: blocker.canQuit)
 
