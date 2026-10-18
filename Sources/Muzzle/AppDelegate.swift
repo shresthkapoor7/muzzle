@@ -408,6 +408,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         field.placeholderString = "Optional"
         field.maximumNumberOfLines = 1
         field.focusRingType = .none
+        // Use AppKit's natural single-line height so the placeholder, text,
+        // and insertion caret share the native vertical alignment.
+        field.setFrameSize(NSSize(width: 320, height: field.fittingSize.height))
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         alert.window.makeFirstResponder(field)
