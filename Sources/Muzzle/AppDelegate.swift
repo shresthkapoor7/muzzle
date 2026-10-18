@@ -80,7 +80,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onRedeemBypass: { [weak self] in self?.redeemExtraBypass() },
             onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() },
             onQuit: { [weak self] in self?.quitWhenInactive() },
-            onCheckForUpdates: { [weak self] in self?.checkForUpdates(manual: true) }
+            onCheckForUpdates: { [weak self] in self?.checkForUpdates(manual: true) },
+            controlClickEnabled: { ActivationPreferences.shared.settings.controlClickEnabled },
+            onControlClick: { [weak self] in
+                self?.activateSavedWebsites(using: ActivationPreferences.shared.settings.controlClickSession)
+            }
         )
 
         activationHotKey = ActivationHotKey { [weak self] in

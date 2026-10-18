@@ -39,6 +39,8 @@ final class ActivationPreferences: ObservableObject {
     struct Settings: Codable {
         var shortcut: ActivationShortcut?
         var keyboardSession = ActivationSession()
+        var controlClickEnabled = false
+        var controlClickSession = ActivationSession()
     }
     @Published var settings: Settings { didSet { persist(); onChange?() } }
     @Published var registrationError: String?

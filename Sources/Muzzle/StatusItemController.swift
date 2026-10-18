@@ -13,6 +13,8 @@ final class StatusItemController: NSObject {
     private let onRetrySystemUpdate: () -> Void
     private let onQuit: () -> Void
     private let onCheckForUpdates: () -> Void
+    private let onControlClick: () -> Void
+    private let controlClickEnabled: () -> Bool
     private let statusItem: NSStatusItem
     private var blockerObservation: AnyCancellable?
 
@@ -26,7 +28,9 @@ final class StatusItemController: NSObject {
         onRedeemBypass: @escaping () -> Void,
         onRetrySystemUpdate: @escaping () -> Void,
         onQuit: @escaping () -> Void,
-        onCheckForUpdates: @escaping () -> Void
+        onCheckForUpdates: @escaping () -> Void,
+        controlClickEnabled: @escaping () -> Bool = { false },
+        onControlClick: @escaping () -> Void = {}
     ) {
         self.blocker = blocker
         self.isDebugMode = isDebugMode
@@ -38,13 +42,17 @@ final class StatusItemController: NSObject {
         self.onRetrySystemUpdate = onRetrySystemUpdate
         self.onQuit = onQuit
         self.onCheckForUpdates = onCheckForUpdates
+        self.controlClickEnabled = controlClickEnabled
+        self.onControlClick = onControlClick
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
         // Keep the user's menu-bar placement across launches, separately for debug builds.
         statusItem.autosaveName = isDebugMode ? "MuzzleDebugStatusItem" : "MuzzleStatusItem"
         updateStatusButton()
-        rebuildMenu()
+        statusItem.button?.target = self
+        statusItem.button?.action = #selector(clicked)
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         observeBlocker()
     }
 
@@ -52,7 +60,6 @@ final class StatusItemController: NSObject {
         blockerObservation = blocker.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
                 self?.updateStatusButton()
-                self?.rebuildMenu()
             }
         }
     }
@@ -75,8 +82,19 @@ final class StatusItemController: NSObject {
         button.toolTip = isBlocking ? "Muzzle: active" : blocker.isBypassActive ? "Muzzle: bypass active" : "Muzzle: inactive"
     }
 
-    private func rebuildMenu() {
-        statusItem.menu = makeMenu()
+    @objc private func clicked() {
+        if Self.shouldActivateOnClick(enabled: controlClickEnabled(),
+                                      modifiers: NSApp.currentEvent?.modifierFlags ?? []) {
+            onControlClick()
+            return
+        }
+        guard let button = statusItem.button else { return }
+        let menu = makeMenu()
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
+    }
+
+    static func shouldActivateOnClick(enabled: Bool, modifiers: NSEvent.ModifierFlags) -> Bool {
+        enabled && modifiers.contains(.control)
     }
 
     func makeMenu() -> NSMenu {

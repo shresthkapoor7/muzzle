@@ -20,9 +20,14 @@ final class ActivationPreferencesTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let preferences = ActivationPreferences(defaults: defaults, isDebugMode: false)
+        XCTAssertFalse(preferences.settings.controlClickEnabled)
+        preferences.settings.controlClickEnabled = true
+        preferences.settings.controlClickSession.minutes = "60"
         preferences.settings.keyboardSession.timed = false
         preferences.settings.keyboardSession.minutes = "45"
         let reloaded = ActivationPreferences(defaults: defaults, isDebugMode: false)
+        XCTAssertTrue(reloaded.settings.controlClickEnabled)
+        XCTAssertEqual(reloaded.settings.controlClickSession.minutes, "60")
         XCTAssertFalse(reloaded.settings.keyboardSession.timed)
         XCTAssertEqual(reloaded.settings.keyboardSession.minutes, "45")
         XCTAssertTrue(ActivationPreferences(defaults: defaults, isDebugMode: true).settings.keyboardSession.timed)

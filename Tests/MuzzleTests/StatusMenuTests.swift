@@ -1,7 +1,15 @@
 import XCTest
+import AppKit
 @testable import Muzzle
 
 final class StatusMenuTests: XCTestCase {
+    @MainActor func testControlClickRequiresOptInAndControlModifier() {
+        XCTAssertFalse(StatusItemController.shouldActivateOnClick(enabled: false, modifiers: [.control]))
+        XCTAssertFalse(StatusItemController.shouldActivateOnClick(enabled: true, modifiers: []))
+        XCTAssertFalse(StatusItemController.shouldActivateOnClick(enabled: true, modifiers: [.command]))
+        XCTAssertTrue(StatusItemController.shouldActivateOnClick(enabled: true, modifiers: [.control]))
+    }
+
     func testServiceStatusAndActiveSessionMenuWithoutWindowServer() {
         let unavailable = StatusMenuPresentation(usesPrivilegedService: true, serviceConnected: false, canQuit: true)
         XCTAssertEqual(unavailable.serviceStatusTitle, "Blocking service: unavailable")

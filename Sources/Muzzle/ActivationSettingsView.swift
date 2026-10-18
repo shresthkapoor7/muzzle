@@ -21,6 +21,13 @@ struct ActivationSettingsView: View {
                     Text(error).font(.system(size: 12)).foregroundStyle(.red)
                 }
                 ActivationSessionFields(session: $preferences.settings.keyboardSession)
+                Divider().padding(.vertical, 4)
+                Toggle("Enable Control-click on the menu-bar icon", isOn: $preferences.settings.controlClickEnabled)
+                Text("Hold Control and click Muzzle to start the session below using your saved websites.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                if preferences.settings.controlClickEnabled {
+                    ActivationSessionFields(session: $preferences.settings.controlClickSession)
+                }
                 Text("Starts protection for your saved websites. An active session stays unchanged. Indefinite sessions require a Poke API key.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }.padding(.top, 12)
