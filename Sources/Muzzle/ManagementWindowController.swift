@@ -73,6 +73,7 @@ private struct ManagementView: View {
                     if !isDebugMode {
                         pokeAPIKeyPanel
                     }
+                    ActivationSettingsView()
                     savedWebsitesPanel
                     setupPanel
                     blockedList
