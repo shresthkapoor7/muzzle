@@ -174,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             await blocker.addWebsites(websites, timedDurationMinutes: session.timed ? session.duration : nil,
                                       allowedBypasses: session.bypasses)
-            if !blocker.blockedDomains.isEmpty, !session.timed { startProtectionSession() }
+            if !blocker.blockedDomains.isEmpty, !session.timed { startProtectionSession(promptOnly: true) }
             if blocker.lastErrorMessage != nil { showManagementWindow() }
         }
     }
@@ -215,7 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pokeClient.sendConnectionTest(completion: completion)
     }
 
-    private func startProtectionSession() {
+    private func startProtectionSession(promptOnly: Bool = false) {
         bypassRequest = nil
         guard !isDebugMode else { return }
         guard pokeAPIKeyStore.isConfigured else {
@@ -224,7 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         unlockKey = UnlockKey.make()
         DispatchQueue.main.async { [weak self] in
-            self?.requestWorkContextForPokeDelivery()
+            self?.requestWorkContextForPokeDelivery(promptOnly: promptOnly)
         }
     }
 
@@ -394,14 +394,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func requestWorkContextForPokeDelivery() {
+    private func requestWorkContextForPokeDelivery(promptOnly: Bool = false) {
         guard workContextAlert == nil else { return }
-
-        showManagementWindow()
-        guard let window = managementWindowController?.window else {
-            deliverUnlockKeyToPoke()
-            return
-        }
 
         let alert = NSAlert()
         alert.icon = MuzzleIcon.alertImage()
@@ -413,15 +407,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 28))
         field.placeholderString = "Optional"
         field.maximumNumberOfLines = 1
+        field.focusRingType = .none
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         alert.window.makeFirstResponder(field)
         workContextAlert = alert
 
-        alert.beginSheetModal(for: window) { [weak self] _ in
+        let complete: () -> Void = { [weak self] in
             let workingOn = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             self?.workContextAlert = nil
             self?.deliverUnlockKeyToPoke(workingOn: workingOn.isEmpty ? nil : workingOn)
+        }
+
+        if promptOnly {
+            let previousApp = NSWorkspace.shared.frontmostApplication
+            managementWindowController?.window?.orderOut(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            alert.window.level = .floating
+            alert.runModal()
+            alert.window.orderOut(nil)
+            complete()
+            if previousApp?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+                previousApp?.activate(options: [])
+            }
+        } else {
+            showManagementWindow()
+            guard let window = managementWindowController?.window else {
+                complete()
+                return
+            }
+            alert.beginSheetModal(for: window) { _ in complete() }
         }
     }
 
