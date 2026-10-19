@@ -84,10 +84,6 @@ final class StatusItemController: NSObject {
         button.toolTip = isBlocking ? "Muzzle: active" : blocker.isBypassActive ? "Muzzle: bypass active" : "Muzzle: inactive"
     }
 
-    static func shouldActivateOnClick(enabled: Bool, modifiers: NSEvent.ModifierFlags) -> Bool {
-        enabled && modifiers.contains(.control)
-    }
-
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = menuActivation
