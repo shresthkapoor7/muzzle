@@ -97,6 +97,30 @@ private final class RecorderButton: NSButton {
     var savedTitle = "Record shortcut…"
     var recording = false { didSet { ActivationPreferences.shared.isRecording = recording } }
     override var acceptsFirstResponder: Bool { true }
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow !== window {
+            NotificationCenter.default.removeObserver(self, name: NSWindow.willCloseNotification, object: window)
+            NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: window)
+            if recording { finish() }
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window else { return }
+        for name in [NSWindow.willCloseNotification, NSWindow.didResignKeyNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(recordingWindowEnded),
+                                                   name: name, object: window)
+        }
+    }
+
+    @objc private func recordingWindowEnded(_ notification: Notification) {
+        if recording { finish() }
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
     @objc func record() {
         recording = true
         title = "Press shortcut…"
