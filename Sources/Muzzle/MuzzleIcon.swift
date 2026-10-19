@@ -5,8 +5,10 @@ enum MuzzleIcon {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { _ in
             let mask = maskPath()
-            NSColor.black.setStroke()
-            NSColor.black.setFill()
+            // Template images preserve alpha while adapting to the menu bar's appearance.
+            let color = NSColor.black.withAlphaComponent(isActive ? 1 : 0.35)
+            color.setStroke()
+            color.setFill()
 
             if isActive {
                 let fraction = min(max(fillFraction, 0), 1)

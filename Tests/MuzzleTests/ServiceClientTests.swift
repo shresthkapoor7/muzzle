@@ -4,6 +4,29 @@ import MuzzleService
 
 final class ServiceClientTests: XCTestCase {
     @MainActor
+    func testShortcutRefreshesStateAfterStartupFailure() async throws {
+        let responses = ActivationResponses()
+        let blocker = BlockerController(serviceRequest: { _ in try responses.next() })
+        do { try await blocker.load(); XCTFail("Expected startup failure") } catch {}
+        let canStart = try await blocker.prepareForShortcutActivation()
+        XCTAssertTrue(canStart)
+        XCTAssertTrue(blocker.serviceConnected)
+        XCTAssertNil(blocker.lastErrorMessage)
+    }
+
+    @MainActor
+    func testShortcutCannotStartOverAnExistingSession() async throws {
+        let blocker = BlockerController(serviceRequest: { _ in
+            var snapshot = ServiceSnapshot()
+            snapshot.domains = ["example.com"]
+            return ServiceResponse(snapshot: snapshot)
+        })
+        let canStart = try await blocker.prepareForShortcutActivation()
+        XCTAssertFalse(canStart)
+        XCTAssertEqual(blocker.blockedDomains, ["example.com"])
+    }
+
+    @MainActor
     func testFailedPollPreservesLastKnownEnforcement() async {
         let blocker = BlockerController(serviceRequest: { _ in throw ServiceFailure("offline") })
         var snapshot = ServiceSnapshot()
@@ -92,5 +115,16 @@ final class ServiceClientTests: XCTestCase {
         XCTAssertTrue(blocker.serviceConnected)
         XCTAssertTrue(blocker.isProtectionEnforced)
         XCTAssertFalse(blocker.statusMessage.contains("unavailable"))
+    }
+}
+
+private final class ActivationResponses: @unchecked Sendable {
+    private let lock = NSLock()
+    private var first = true
+    func next() throws -> ServiceResponse {
+        lock.lock()
+        defer { lock.unlock() }
+        if first { first = false; throw ServiceFailure("Helper unavailable at startup") }
+        return ServiceResponse(snapshot: ServiceSnapshot())
     }
 }

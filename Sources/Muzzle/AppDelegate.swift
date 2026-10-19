@@ -6,6 +6,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let blocker = BlockerController(isDebugMode: DebugMode.isEnabled)
     private lazy var pokeAPIKeyStore = PokeAPIKeyStore()
     private lazy var pokeClient = PokeClient(apiKeyStore: pokeAPIKeyStore)
+    private var activationHotKey: ActivationHotKey?
+    private var isStartingFromShortcut = false
     private var statusItemController: StatusItemController?
     private var managementWindowController: ManagementWindowController?
     private var workContextAlert: NSAlert?
@@ -76,8 +78,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onRedeemBypass: { [weak self] in self?.redeemExtraBypass() },
             onRetrySystemUpdate: { [weak self] in self?.retrySystemUpdate() },
             onQuit: { [weak self] in self?.quitWhenInactive() },
-            onCheckForUpdates: { [weak self] in self?.checkForUpdates(manual: true) }
+            onCheckForUpdates: { [weak self] in self?.checkForUpdates(manual: true) },
+            controlClickEnabled: { ActivationPreferences.shared.settings.controlClickEnabled },
+            onControlClick: { [weak self] in
+                self?.activateSavedWebsites(using: ActivationPreferences.shared.settings.controlClickSession)
+            }
         )
+
+        activationHotKey = ActivationHotKey { [weak self] in
+            self?.activateSavedWebsites(using: ActivationPreferences.shared.settings.keyboardSession)
+        }
+        ActivationPreferences.shared.onChange = { [weak self] in
+            let preferences = ActivationPreferences.shared
+            preferences.registrationError = self?.activationHotKey?.update(preferences.isRecording ? nil : preferences.settings.shortcut)
+        }
+        ActivationPreferences.shared.onChange?()
 
         if !isDebugMode {
             checkForUpdates(manual: false)
@@ -132,6 +147,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func activateSavedWebsites(using session: ActivationSession) {
+        guard !isStartingFromShortcut else { return }
+        isStartingFromShortcut = true
+        Task { @MainActor in
+            defer { isStartingFromShortcut = false }
+            do {
+                guard try await blocker.prepareForShortcutActivation() else {
+                    showManagementWindow()
+                    return
+                }
+            } catch {
+                blocker.present(error: error)
+                showManagementWindow()
+                return
+            }
+            let websites = SavedWebsites().domains
+            guard !websites.isEmpty, session.isValid,
+                  isDebugMode || session.timed || pokeAPIKeyStore.isConfigured else {
+                showManagementWindow()
+                let alert = NSAlert()
+                alert.messageText = "Finish setting up your shortcut"
+                alert.informativeText = "Save at least one website and a valid session duration. Indefinite sessions need a Poke API key."
+                alert.runModal()
+                return
+            }
+            await blocker.addWebsites(websites, timedDurationMinutes: session.timed ? session.duration : nil,
+                                      allowedBypasses: session.bypasses)
+            if !blocker.blockedDomains.isEmpty, !session.timed { startProtectionSession(promptOnly: true) }
+            if blocker.lastErrorMessage != nil { showManagementWindow() }
+        }
+    }
+
     private func showManagementWindow() {
         if managementWindowController == nil {
             managementWindowController = ManagementWindowController(
@@ -168,7 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pokeClient.sendConnectionTest(completion: completion)
     }
 
-    private func startProtectionSession() {
+    private func startProtectionSession(promptOnly: Bool = false) {
         bypassRequest = nil
         guard !isDebugMode else { return }
         guard pokeAPIKeyStore.isConfigured else {
@@ -177,7 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         unlockKey = UnlockKey.make()
         DispatchQueue.main.async { [weak self] in
-            self?.requestWorkContextForPokeDelivery()
+            self?.requestWorkContextForPokeDelivery(promptOnly: promptOnly)
         }
     }
 
@@ -347,14 +394,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func requestWorkContextForPokeDelivery() {
+    private func requestWorkContextForPokeDelivery(promptOnly: Bool = false) {
         guard workContextAlert == nil else { return }
-
-        showManagementWindow()
-        guard let window = managementWindowController?.window else {
-            deliverUnlockKeyToPoke()
-            return
-        }
 
         let alert = NSAlert()
         alert.icon = MuzzleIcon.alertImage()
@@ -366,15 +407,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 28))
         field.placeholderString = "Optional"
         field.maximumNumberOfLines = 1
+        field.focusRingType = .none
+        // Use AppKit's natural single-line height so the placeholder, text,
+        // and insertion caret share the native vertical alignment.
+        field.setFrameSize(NSSize(width: 320, height: field.fittingSize.height))
         alert.accessoryView = field
         alert.window.initialFirstResponder = field
         alert.window.makeFirstResponder(field)
         workContextAlert = alert
 
-        alert.beginSheetModal(for: window) { [weak self] _ in
+        let complete: () -> Void = { [weak self] in
             let workingOn = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             self?.workContextAlert = nil
             self?.deliverUnlockKeyToPoke(workingOn: workingOn.isEmpty ? nil : workingOn)
+        }
+
+        if promptOnly {
+            let previousApp = NSWorkspace.shared.frontmostApplication
+            managementWindowController?.window?.orderOut(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            alert.window.level = .floating
+            alert.runModal()
+            alert.window.orderOut(nil)
+            complete()
+            if blocker.lastErrorMessage != nil {
+                showManagementWindow()
+            } else if previousApp?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+                previousApp?.activate(options: [])
+            }
+        } else {
+            showManagementWindow()
+            guard let window = managementWindowController?.window else {
+                complete()
+                return
+            }
+            alert.beginSheetModal(for: window) { _ in complete() }
         }
     }
 

@@ -21,7 +21,7 @@ final class ManagementWindowController: NSWindowController {
             onRetrySystemUpdate: onRetrySystemUpdate,
             onInstallService: onInstallService
         )
-        let hostingController = NSHostingController(rootView: rootView)
+        let hostingController = ManagementHostingController(rootView: rootView)
         // Window size is user-controlled; changing form content must not resize it.
         hostingController.sizingOptions = []
         let window = NSWindow(contentViewController: hostingController)
@@ -39,6 +39,19 @@ final class ManagementWindowController: NSWindowController {
     }
 }
 
+/// Keep text editing and keyboard focus, without AppKit's colored outer focus ring.
+private final class ManagementHostingController<Content: View>: NSHostingController<Content> {
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        removeTextFieldFocusRings(in: view)
+    }
+
+    private func removeTextFieldFocusRings(in view: NSView) {
+        if let field = view as? NSTextField { field.focusRingType = .none }
+        for child in view.subviews { removeTextFieldFocusRings(in: child) }
+    }
+}
+
 private struct ManagementView: View {
     @ObservedObject var blocker: BlockerController
     let isDebugMode: Bool
@@ -47,6 +60,9 @@ private struct ManagementView: View {
     let onTestPoke: (@escaping (Result<Void, Error>) -> Void) -> Void
     let onRetrySystemUpdate: () -> Void
     let onInstallService: () -> Void
+    @StateObject private var savedWebsites = SavedWebsites()
+    @State private var savedWebsiteInput = ""
+    @State private var savedWebsitesExpanded = false
     @AppStorage(BypassWarningController.soundPreference) private var bypassWarningSound = false
     @State private var domainInput = ""
     @State private var blockMode = BlockMode.timed
@@ -70,6 +86,8 @@ private struct ManagementView: View {
                     if !isDebugMode {
                         pokeAPIKeyPanel
                     }
+                    ActivationSettingsView()
+                    savedWebsitesPanel
                     setupPanel
                     blockedList
                 }
@@ -119,34 +137,63 @@ private struct ManagementView: View {
         }
     }
 
+    private var savedWebsitesPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SettingsPanelHeader(title: "Saved websites", isExpanded: savedWebsitesExpanded,
+                                toggle: { savedWebsitesExpanded.toggle() }) {
+                Text("\(savedWebsites.domains.count) saved").foregroundStyle(.secondary)
+            }
+            if savedWebsitesExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Included every time you start protection, manually or with a shortcut. Changes here apply to future sessions.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        TextField("example.com", text: $savedWebsiteInput)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("Website to save")
+                            .onSubmit(saveWebsite)
+                        Button("Save", action: saveWebsite)
+                            .disabled(savedWebsiteInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    ForEach(savedWebsites.domains, id: \.self) { domain in
+                        HStack {
+                            Text(domain)
+                            Spacer()
+                            Button("Remove") { savedWebsites.remove(domain) }
+                                .accessibilityLabel("Remove \(domain) from saved websites")
+                        }
+                    }
+                    Text("Saved locally on this Mac.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func saveWebsite() {
+        do {
+            try savedWebsites.add(savedWebsiteInput)
+            savedWebsiteInput = ""
+        } catch { blocker.present(error: error) }
+    }
+
     private var pokeAPIKeyPanel: some View {
         let expanded = pokeKeyDisclosure.isExpanded(isConfigured: pokeAPIKeyStore.isConfigured)
         return VStack(alignment: .leading, spacing: 12) {
-            Button {
+            SettingsPanelHeader(title: "Poke API key", isExpanded: expanded, toggle: {
                 pokeKeyDisclosure.toggle(isConfigured: pokeAPIKeyStore.isConfigured)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(width: 12)
-                        .accessibilityHidden(true)
-                    Text("Poke API key")
-                        .font(.system(size: 15, weight: .semibold))
-                    Spacer()
-                    Label(
-                        pokeAPIKeyStore.isConfigured ? "Saved in Keychain" : "Required for untimed locks",
-                        systemImage: pokeAPIKeyStore.isConfigured ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-                    )
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(pokeAPIKeyStore.isConfigured ? .green : .orange)
-                }
-                .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-                .contentShape(Rectangle())
+            }) {
+                Label(
+                    pokeAPIKeyStore.isConfigured ? "Saved in Keychain" : "Required for untimed locks",
+                    systemImage: pokeAPIKeyStore.isConfigured ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(pokeAPIKeyStore.isConfigured ? .green : .orange)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Poke API key")
-            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
-            .accessibilityHint("Show or hide API key controls")
 
             if expanded {
                 pokeAPIKeyControls
@@ -253,7 +300,7 @@ private struct ManagementView: View {
                             .accessibilityLabel("Website domain")
                             .focused($isWebsiteFocused)
                             .onSubmit(addDomain)
-                        Button("Block", action: addDomain)
+                        Button(blocker.blockedDomains.isEmpty ? "Start" : "Block", action: addDomain)
                             .buttonStyle(.borderedProminent)
                             .disabled(isBlockDisabled)
                             .accessibilityHint("Adds this website to the hosts-file block list")
@@ -326,7 +373,7 @@ private struct ManagementView: View {
                 )
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                    .lineLimit(2, reservesSpace: true)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             Text("Use a domain such as youtube.com; its www version is included too.")
@@ -429,11 +476,8 @@ private struct ManagementView: View {
         let limit = wasInactive ? allowedBypasses : 1
         let isUntimed = blockMode == .untilEnded
         Task { @MainActor in
-            await blocker.add(
-                domain,
-                timedDurationMinutes: minutes,
-                allowedBypasses: limit
-            )
+            let inputs = (wasInactive ? savedWebsites.domains : []) + (domain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [domain])
+            await blocker.addWebsites(inputs, timedDurationMinutes: minutes, allowedBypasses: limit)
             if wasInactive, !blocker.blockedDomains.isEmpty {
                 if isUntimed {
                     onProtectionStarted()
@@ -456,7 +500,7 @@ private struct ManagementView: View {
     }
 
     private var isBlockDisabled: Bool {
-        domainInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        (domainInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (!blocker.blockedDomains.isEmpty || savedWebsites.domains.isEmpty))
             || blocker.isApplying
             || (blocker.usesPrivilegedService && !blocker.serviceConnected)
             || (blocker.blockedDomains.isEmpty && blockMode == .timed && timedMinutes == nil)

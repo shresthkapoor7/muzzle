@@ -13,7 +13,12 @@ final class StatusItemController: NSObject {
     private let onRetrySystemUpdate: () -> Void
     private let onQuit: () -> Void
     private let onCheckForUpdates: () -> Void
+    private let onControlClick: () -> Void
+    private let controlClickEnabled: () -> Bool
     private let statusItem: NSStatusItem
+    private lazy var menuActivation = StatusMenuActivation(
+        isEnabled: controlClickEnabled, activate: onControlClick
+    )
     private var blockerObservation: AnyCancellable?
 
     init(
@@ -26,7 +31,9 @@ final class StatusItemController: NSObject {
         onRedeemBypass: @escaping () -> Void,
         onRetrySystemUpdate: @escaping () -> Void,
         onQuit: @escaping () -> Void,
-        onCheckForUpdates: @escaping () -> Void
+        onCheckForUpdates: @escaping () -> Void,
+        controlClickEnabled: @escaping () -> Bool = { false },
+        onControlClick: @escaping () -> Void = {}
     ) {
         self.blocker = blocker
         self.isDebugMode = isDebugMode
@@ -38,13 +45,15 @@ final class StatusItemController: NSObject {
         self.onRetrySystemUpdate = onRetrySystemUpdate
         self.onQuit = onQuit
         self.onCheckForUpdates = onCheckForUpdates
+        self.controlClickEnabled = controlClickEnabled
+        self.onControlClick = onControlClick
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
         // Keep the user's menu-bar placement across launches, separately for debug builds.
         statusItem.autosaveName = isDebugMode ? "MuzzleDebugStatusItem" : "MuzzleStatusItem"
         updateStatusButton()
-        rebuildMenu()
+        statusItem.menu = makeMenu()
         observeBlocker()
     }
 
@@ -52,7 +61,7 @@ final class StatusItemController: NSObject {
         blockerObservation = blocker.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
                 self?.updateStatusButton()
-                self?.rebuildMenu()
+                self?.statusItem.menu = self?.makeMenu()
             }
         }
     }
@@ -75,12 +84,9 @@ final class StatusItemController: NSObject {
         button.toolTip = isBlocking ? "Muzzle: active" : blocker.isBypassActive ? "Muzzle: bypass active" : "Muzzle: inactive"
     }
 
-    private func rebuildMenu() {
-        statusItem.menu = makeMenu()
-    }
-
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
+        menu.delegate = menuActivation
         let presentation = StatusMenuPresentation(usesPrivilegedService: blocker.usesPrivilegedService,
                                                   serviceConnected: blocker.serviceConnected, canQuit: blocker.canQuit)
 
