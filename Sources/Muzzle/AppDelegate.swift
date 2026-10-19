@@ -430,7 +430,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.runModal()
             alert.window.orderOut(nil)
             complete()
-            if previousApp?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            if blocker.lastErrorMessage != nil {
+                showManagementWindow()
+            } else if previousApp?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
                 previousApp?.activate(options: [])
             }
         } else {
