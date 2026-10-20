@@ -308,7 +308,7 @@ main,
 }
 
 .hero h1 {
-  font-size: clamp(28px, 3.6vw, 44px);
+  font-size: clamp(28px, 4.8vw, 44px);
   font-weight: 600;
   letter-spacing: -0.035em;
   line-height: 1.12;
@@ -411,6 +411,7 @@ a.brand:hover {
 }
 
 .hero-meta {
+  text-wrap: balance;
   margin-top: 20px;
   font-family: var(--mono);
   font-size: 11px;
@@ -477,7 +478,7 @@ a.brand:hover {
 
 .steps {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .steps .cell + .cell {
@@ -486,7 +487,7 @@ a.brand:hover {
 
 .features {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .features .cell {
@@ -505,7 +506,7 @@ a.brand:hover {
 /* separate tiles: a small gap between the illustrations, each with its own frame */
 .details {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 28px 14px;
   padding: 14px;
 }
@@ -530,7 +531,7 @@ a.brand:hover {
 /* ── enforcement: copy + live rule viewer ──────────────── */
 .split {
   display: grid;
-  grid-template-columns: 1fr 1.08fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
 }
 
 .p-copy {
@@ -598,6 +599,15 @@ a.brand:hover {
   border: 0;
   cursor: pointer;
   transition: color 0.15s;
+  /* tabs share the bar: on narrow screens the longer path is shortened with an ellipsis */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rv-tab:first-child {
+  flex: none;
 }
 
 .rv-tab + .rv-tab {
@@ -736,7 +746,7 @@ a.brand:hover {
 /* ── limitations ───────────────────────────────────────── */
 .limits {
   display: grid;
-  grid-template-columns: 1fr 1.6fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
   gap: 24px 48px;
   padding: 36px 40px;
 }
@@ -764,7 +774,7 @@ a.brand:hover {
 
 .dl-row {
   display: grid;
-  grid-template-columns: 20px 90px 1fr auto;
+  grid-template-columns: 20px 90px minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
   padding: 20px 28px;
@@ -848,7 +858,12 @@ a.brand:hover {
   line-height: 1.12;
 }
 
+.nowrap {
+  white-space: nowrap;
+}
+
 .closing p {
+  text-wrap: balance;
   margin: 14px 0 30px;
   font-size: 15px;
   color: var(--muted);
@@ -876,7 +891,7 @@ a.brand:hover {
   .details,
   .split,
   .limits {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .steps .cell + .cell {
@@ -919,8 +934,18 @@ a.brand:hover {
   }
 
   .dl-row {
-    grid-template-columns: 20px 1fr;
+    grid-template-columns: 20px minmax(0, 1fr);
     gap: 4px 12px;
+  }
+
+  /* wrapped lines would leave the separator dots stranded at line ends */
+  .dl-meta span[aria-hidden="true"] {
+    display: none;
+  }
+
+  .dl-meta {
+    flex-direction: column;
+    gap: 6px;
   }
 
   .dl-detail,
@@ -934,6 +959,31 @@ a.brand:hover {
 
   .rv-line {
     font-size: 11px;
+  }
+
+  /* the generous desktop padding costs too much width on a phone */
+  .cell {
+    padding: 22px 20px;
+  }
+
+  .note {
+    padding: 20px 18px 22px;
+  }
+
+  .dl-row {
+    padding: 16px 18px;
+  }
+
+  .dl-meta {
+    padding: 14px 18px;
+  }
+
+  .p-copy {
+    padding: 28px 20px;
+  }
+
+  .limits {
+    padding: 24px 20px;
   }
 }
 

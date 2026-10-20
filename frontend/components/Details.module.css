@@ -88,7 +88,7 @@
 /* ── alerts (NSAlert) ──────────────────────────────────── */
 .alert {
   display: grid;
-  grid-template-columns: 64px 1fr;
+  grid-template-columns: 64px minmax(0, 1fr);
   gap: 8px 18px;
   width: min(420px, 100%);
   padding: 22px 24px 18px;
@@ -123,6 +123,7 @@
 .alertButtons {
   grid-column: 1 / -1;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 10px;
@@ -470,6 +471,76 @@
   100% {
     opacity: 0.25;
     transform: scale(0.98);
+  }
+}
+
+/* ── small screens ─────────────────────────────────────── */
+@media (max-width: 520px) {
+  .art {
+    min-height: 320px;
+    padding: 16px;
+  }
+
+  .reminder {
+    padding: 14px;
+  }
+
+  .alert {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 8px 12px;
+    padding: 16px;
+  }
+
+  .alertIcon {
+    width: 48px;
+    height: 48px;
+    border-radius: 11px;
+  }
+
+  .fieldCenter {
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+
+  /* the row wraps on small screens, which would strand the arrow */
+  .arrow {
+    display: none;
+  }
+
+  .startRow {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .shortcut {
+    gap: 14px;
+  }
+
+  .slot {
+    width: 112px;
+    height: 112px;
+    border-radius: 24px;
+  }
+
+  .bigGlyph {
+    width: 70px;
+    height: 70px;
+  }
+
+  .ticks i {
+    width: 22px;
+  }
+
+  .statusPill {
+    font-size: 11px;
+  }
+}
+
+/* very narrow: put the dialog icon above its text so the text keeps the full width */
+@media (max-width: 380px) {
+  .alert {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

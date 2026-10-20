@@ -218,7 +218,9 @@ export default function Home() {
         <section className="closing" aria-labelledby="closing-title">
           <div className="wrap">
             <h2 id="closing-title">Stay on task.</h2>
-            <p>Muzzle is open source and licensed under AGPL-3.0.</p>
+            <p>
+              Muzzle is open source and licensed under <span className="nowrap">AGPL-3.0</span>.
+            </p>
             <div className="cta-row">
               <a className="btn" href="#download">
                 <AppleIcon className="btn-icon" />

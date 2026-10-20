@@ -209,7 +209,7 @@
 /* ── alert (step 1) ────────────────────────────────────── */
 .alert {
   display: grid;
-  grid-template-columns: 64px 1fr;
+  grid-template-columns: 64px minmax(0, 1fr);
   gap: 8px 16px;
   width: min(400px, 100%);
   padding: 22px 24px 18px;
@@ -239,6 +239,7 @@
 .alertButtons {
   grid-column: 1 / -1;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 10px;
@@ -247,7 +248,7 @@
 /* ── System Settings (steps 2 and 3) ───────────────────── */
 .settings {
   display: grid;
-  grid-template-columns: 150px 1fr;
+  grid-template-columns: 150px minmax(0, 1fr);
   width: min(440px, 100%);
   min-height: 250px;
   overflow: hidden;
@@ -412,12 +413,84 @@
 }
 
 @media (max-width: 520px) {
-  .settings {
-    grid-template-columns: 110px 1fr;
+  .stage {
+    min-height: 260px;
+    padding: 14px;
   }
 
-  .stage {
+  .alert {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 8px 12px;
     padding: 16px;
+  }
+
+  .alertIcon {
+    width: 48px;
+    height: 48px;
+    border-radius: 11px;
+  }
+
+  .settings {
+    grid-template-columns: 112px minmax(0, 1fr);
+    min-height: 230px;
+  }
+
+  .sidebar {
+    gap: 10px;
+    padding: 10px 6px;
+  }
+
+  .pane {
+    padding: 0 6px;
+    font-size: 11px;
+  }
+
+  .pane i {
+    display: none;
+  }
+
+  .content {
+    padding: 12px;
+  }
+
+  .content h4 {
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+
+  .securityRow {
+    padding: 10px;
+    font-size: 11px;
+  }
+
+  .button {
+    min-width: 0;
+    padding: 0 10px;
+  }
+
+  .auth {
+    padding: 18px 16px 14px;
+  }
+}
+
+/* very narrow: the Settings sidebar becomes a row of chips above the content */
+@media (max-width: 380px) {
+  .alert {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--mac-line);
+  }
+
+  .sidebar ul {
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 }
 

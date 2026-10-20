@@ -10,7 +10,7 @@ import styles from "./AppDemo.module.css";
 const FULL_WIDTH = 1000;
 const COMPACT_WIDTH = 600;
 const HEIGHT = 800;
-const COMPACT_BREAKPOINT = 720;
+const COMPACT_BREAKPOINT = 640;
 
 const BASE_DOMAINS = ["youtube.com", "x.com"];
 const NEW_DOMAIN = "reddit.com";

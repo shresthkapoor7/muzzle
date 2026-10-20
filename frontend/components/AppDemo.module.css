@@ -20,6 +20,8 @@
   composes: tokens wall from "./mac.module.css";
   position: relative;
   height: 800px;
+  /* centred when there is spare room; auto margins collapse to 0 when the scene is scaled down */
+  margin-inline: auto;
   transform-origin: top left;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
