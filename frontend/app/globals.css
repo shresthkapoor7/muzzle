@@ -108,9 +108,8 @@ code {
 }
 
 /* ── page background ───────────────────────────────────── */
-/* A fixed dot grid that drifts on its own, plus a brighter copy of the grid revealed
-   in a soft circle around the pointer. Both layers share one animation so the lit dots
-   stay registered with the grid. */
+/* A very faint ASCII dog in a muzzle, fixed behind the page. A brighter copy of the same
+   glyphs is revealed in a soft circle around the pointer. */
 .page-bg {
   --mx: 50vw;
   --my: 30vh;
@@ -118,36 +117,46 @@ code {
   position: fixed;
   inset: 0;
   z-index: 0;
+  overflow: hidden;
   pointer-events: none;
+  user-select: none;
 }
 
-.page-bg::before,
-.page-bg::after {
-  content: "";
+.ascii {
+  position: absolute;
+  right: 0;
+  top: 4vh;
+  margin: 0;
+  font-family: var(--mono);
+  /* 89 rows take up roughly three quarters of the viewport height, which keeps the
+     muzzle in the upper half where the hero copy is */
+  font-size: max(6px, 0.84vh);
+  line-height: 1;
+  white-space: pre;
+  color: var(--fg);
+  opacity: 0.1;
+  /* fade the body and edges so the head and muzzle carry the shape */
+  -webkit-mask-image: radial-gradient(85% 80% at 25% 50%, #000 40%, transparent 90%);
+  mask-image: radial-gradient(85% 80% at 25% 50%, #000 40%, transparent 90%);
+}
+
+.ascii-lit {
   position: absolute;
   inset: 0;
-  background-size: 24px 24px;
-  animation: grid-drift 8s linear infinite;
-}
-
-.page-bg::before {
-  background-image: radial-gradient(var(--faint2) 1px, transparent 1.5px);
-  opacity: 0.32;
-  -webkit-mask-image: radial-gradient(120% 100% at 50% 0%, #000 25%, transparent 100%);
-  mask-image: radial-gradient(120% 100% at 50% 0%, #000 25%, transparent 100%);
-}
-
-.page-bg::after {
-  background-image: radial-gradient(var(--muted) 1px, transparent 1.5px);
-  opacity: calc(var(--glow) * 0.5);
+  opacity: calc(var(--glow) * 0.9);
   transition: opacity 0.6s;
-  -webkit-mask-image: radial-gradient(130px circle at var(--mx) var(--my), #000, transparent);
-  mask-image: radial-gradient(130px circle at var(--mx) var(--my), #000, transparent);
+  -webkit-mask-image: radial-gradient(170px circle at var(--mx) var(--my), #000, transparent);
+  mask-image: radial-gradient(170px circle at var(--mx) var(--my), #000, transparent);
 }
 
-@keyframes grid-drift {
-  to {
-    background-position: 24px 24px;
+.ascii-lit .ascii {
+  opacity: 0.3;
+}
+
+@media (max-width: 900px) {
+  .ascii {
+    right: 50%;
+    transform: translateX(50%);
   }
 }
 
@@ -874,8 +883,6 @@ main,
     scroll-behavior: auto;
   }
 
-  .page-bg::before,
-  .page-bg::after,
   .rv-progress {
     animation: none;
   }

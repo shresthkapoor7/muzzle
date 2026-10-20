@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { DOG_ASCII } from "@/lib/dog-ascii";
 
-/** Fixed, pointer-reactive dot-grid backdrop; the look lives in `.page-bg` in globals.css. */
+/**
+ * Fixed backdrop: a very faint ASCII dog in a muzzle, whose glyphs brighten in a soft
+ * circle around the pointer. The look lives in `.page-bg` in globals.css.
+ */
 export function PageBackground() {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -37,5 +41,12 @@ export function PageBackground() {
     };
   }, []);
 
-  return <div ref={ref} className="page-bg" aria-hidden="true" />;
+  return (
+    <div ref={ref} className="page-bg" aria-hidden="true">
+      <pre className="ascii">{DOG_ASCII}</pre>
+      <div className="ascii-lit">
+        <pre className="ascii">{DOG_ASCII}</pre>
+      </div>
+    </div>
+  );
 }
