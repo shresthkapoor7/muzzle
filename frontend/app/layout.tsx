@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PageBackground } from "@/components/PageBackground";
+import { SITE_URL } from "@/lib/links";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,16 +20,18 @@ const description =
   "A native macOS menu-bar website blocker with a privileged background service.";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Muzzle — a website blocker that stays on",
   description,
   openGraph: {
+    url: SITE_URL,
     title: "Muzzle",
     description,
     siteName: "Muzzle",
     type: "website",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Muzzle",
     description,
   },
