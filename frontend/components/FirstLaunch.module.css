@@ -1,0 +1,401 @@
+/* First-launch walkthrough: the steps beside a looping mock of each macOS screen. */
+
+.walkthrough {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 28px;
+  margin-top: 24px;
+  align-items: stretch;
+}
+
+/* ── steps ─────────────────────────────────────────────── */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--faint);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.step:hover {
+  color: var(--muted);
+}
+
+.step[aria-current="step"] {
+  color: var(--muted);
+  border-color: var(--line);
+  background: var(--card);
+}
+
+.step:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.step strong {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  font: 500 11px var(--mono);
+  color: var(--faint);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
+.step[aria-current="step"] .num {
+  color: var(--bg);
+  background: var(--fg);
+  border-color: var(--fg);
+}
+
+.stepText {
+  flex: 1;
+}
+
+/* fills over the auto-advance interval */
+.progress {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: -1px;
+  height: 1px;
+  background: var(--fg);
+  transform-origin: left;
+  animation: progress 4.5s linear forwards;
+}
+
+@keyframes progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ── stage ─────────────────────────────────────────────── */
+.stage {
+  composes: tokens wall from "./mac.module.css";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  padding: 24px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.scene {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  animation: scene-in 0.45s ease both;
+}
+
+@keyframes scene-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* the control to click gets a soft pulsing ring */
+.target {
+  animation: pulse 1.6s ease-in-out 0.5s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--mac-t1) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--mac-t1) 38%, transparent);
+  }
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  height: 24px;
+  padding: 0 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--mac-t1);
+  background: color-mix(in srgb, var(--mac-t1) 12%, transparent);
+  border-radius: 5px;
+}
+
+.primary {
+  color: #fff;
+  background: var(--mac-accent);
+}
+
+.dim {
+  opacity: 0.55;
+}
+
+.lights {
+  display: flex;
+  gap: 8px;
+}
+
+.lights i {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--mac-light);
+}
+
+/* ── alert (step 1) ────────────────────────────────────── */
+.alert {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 8px 16px;
+  width: min(400px, 100%);
+  padding: 22px 24px 18px;
+  background: var(--mac-window);
+  border-radius: 14px;
+  box-shadow: var(--window-shadow);
+}
+
+.alertIcon {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+}
+
+.alertTitle {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.alertBody {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.alertButtons {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* ── System Settings (steps 2 and 3) ───────────────────── */
+.settings {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  width: min(440px, 100%);
+  min-height: 250px;
+  overflow: hidden;
+  background: var(--mac-window);
+  border-radius: 12px;
+  box-shadow: var(--window-shadow);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 8px;
+  background: var(--mac-title);
+  border-right: 1px solid var(--mac-line);
+}
+
+.sidebar .lights {
+  padding-left: 4px;
+}
+
+.sidebar ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+}
+
+.pane {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  border-radius: 6px;
+}
+
+.pane i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--mac-light);
+}
+
+.selected {
+  background: color-mix(in srgb, var(--mac-t1) 14%, transparent);
+}
+
+.content {
+  padding: 16px;
+}
+
+.content h4 {
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+}
+
+.skeleton li {
+  height: 32px;
+  background: var(--mac-panel);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--mac-line);
+}
+
+.label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mac-t2);
+}
+
+.securityRow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.35;
+  background: var(--mac-panel);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--mac-line);
+}
+
+/* ── authenticate (step 4) ─────────────────────────────── */
+.auth {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: min(300px, 100%);
+  padding: 22px 22px 18px;
+  text-align: center;
+  background: var(--mac-window);
+  border-radius: 14px;
+  box-shadow: var(--window-shadow);
+}
+
+.lock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  color: var(--mac-t1);
+  background: var(--mac-panel);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--mac-line);
+}
+
+.lock svg {
+  width: 22px;
+  height: 22px;
+}
+
+.auth strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.auth p {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--mac-t2);
+}
+
+.authField {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  margin-top: 6px;
+  padding: 0 7px;
+  text-align: left;
+  color: var(--mac-t3);
+  background: var(--mac-field);
+  border-radius: 5px;
+  box-shadow: 0 0 0 1px var(--mac-field-line);
+}
+
+.auth .alertButtons {
+  align-self: stretch;
+}
+
+@media (max-width: 900px) {
+  .walkthrough {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .settings {
+    grid-template-columns: 110px 1fr;
+  }
+
+  .stage {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .target,
+  .scene {
+    animation: none;
+  }
+}
