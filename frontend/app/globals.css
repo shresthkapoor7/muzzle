@@ -538,6 +538,34 @@ main,
   outline-offset: -2px;
 }
 
+.rv-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  margin-left: auto;
+  color: var(--faint);
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--line);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.rv-toggle svg {
+  width: 11px;
+  height: 11px;
+}
+
+.rv-toggle:hover {
+  color: var(--fg);
+}
+
+.rv-toggle:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: -2px;
+}
+
 /* fills over the auto-advance interval, then the next file opens */
 .rv-progress {
   position: absolute;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
+import { useReducedMotion } from "@/lib/useReducedMotion";
 
 type Tone = "plain" | "dim" | "comment" | "hot";
 type Line = { text: string; tone: Tone };
@@ -45,13 +46,18 @@ const FILES: RuleFile[] = [
 const CYCLE_MS = 8000;
 
 export function RuleViewer() {
+  const reducedMotion = useReducedMotion();
   const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const cycling = !reducedMotion && !paused;
 
-  // Advance on a timer; picking a tab by hand restarts it.
+  // Advance on a timer; picking a tab by hand restarts it. Reduced motion, or a
+  // manual pause, leaves the current file in place.
   useEffect(() => {
+    if (!cycling) return;
     const timer = window.setTimeout(() => setActive((i) => (i + 1) % FILES.length), CYCLE_MS);
     return () => window.clearTimeout(timer);
-  }, [active]);
+  }, [active, cycling]);
 
   const file = FILES[active];
 
@@ -72,9 +78,28 @@ export function RuleViewer() {
                 onClick={() => setActive(index)}
               >
                 {f.path}
-                {index === active && <span className="rv-progress" key={active} aria-hidden="true" />}
+                {index === active && cycling && (
+                  <span className="rv-progress" key={active} aria-hidden="true" />
+                )}
               </button>
             ))}
+            {!reducedMotion && (
+              <button
+                type="button"
+                className="rv-toggle"
+                aria-pressed={paused}
+                aria-label={paused ? "Resume automatic file switching" : "Pause automatic file switching"}
+                onClick={() => setPaused((p) => !p)}
+              >
+                <svg viewBox="0 0 12 12" aria-hidden="true">
+                  {paused ? (
+                    <path d="M3.5 2.2v7.6L9.6 6 3.5 2.2Z" fill="currentColor" />
+                  ) : (
+                    <path d="M3 2h2v8H3zM7 2h2v8H7z" fill="currentColor" />
+                  )}
+                </svg>
+              </button>
+            )}
           </div>
           <div className="rv-body" role="tabpanel" id="rv-panel" aria-labelledby={`rv-tab-${active}`}>
             {/* keyed by tab so every switch replays the line-by-line reveal */}
