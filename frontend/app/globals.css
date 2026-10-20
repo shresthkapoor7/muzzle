@@ -502,21 +502,16 @@ a.brand:hover {
   border-bottom: 0;
 }
 
+/* separate tiles: a small gap between the illustrations, each with its own frame */
 .details {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-}
-
-.detail:nth-child(odd) {
-  border-right: 1px solid var(--line);
-}
-
-.detail:nth-child(-n + 2) {
-  border-bottom: 1px solid var(--line);
+  gap: 28px 14px;
+  padding: 14px;
 }
 
 .detail-copy {
-  padding: 24px 28px 28px;
+  padding: 16px 8px 4px;
 }
 
 .detail-copy h3 {
@@ -882,14 +877,6 @@ a.brand:hover {
   .split,
   .limits {
     grid-template-columns: 1fr;
-  }
-
-  .detail:nth-child(odd) {
-    border-right: 0;
-  }
-
-  .detail:nth-child(-n + 3) {
-    border-bottom: 1px solid var(--line);
   }
 
   .steps .cell + .cell {

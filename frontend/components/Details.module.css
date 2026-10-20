@@ -9,7 +9,8 @@
   min-height: 370px;
   padding: 28px;
   overflow: hidden;
-  border-bottom: 1px solid var(--line);
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
 
 .secondary {
@@ -286,9 +287,198 @@
   justify-content: flex-end;
 }
 
+/* ── bypass countdown ──────────────────────────────────── */
+.bypass {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 132px;
+  height: 132px;
+  color: var(--mac-t1);
+  background: var(--menubar-bg);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border-radius: 28px;
+  box-shadow: 0 0 0 1px var(--mac-line), 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.bigGlyph {
+  width: 84px;
+  height: 84px;
+}
+
+.ticks {
+  display: flex;
+  gap: 6px;
+}
+
+.ticks i {
+  display: block;
+  width: 26px;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--mac-t1) 18%, transparent);
+  transition: background 0.3s;
+}
+
+.ticks .tickOn {
+  background: var(--mac-t1);
+}
+
+.minutes {
+  font: 500 11px var(--mono);
+  letter-spacing: 0.03em;
+  color: var(--mac-t2);
+}
+
+.statusPill {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--mac-t1);
+  background: var(--menu-bg);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--mac-line);
+  text-align: center;
+}
+
+/* ── shortcut story ────────────────────────────────────── */
+.shortcut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: min(420px, 100%);
+}
+
+.startRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.caps {
+  display: flex;
+  gap: 6px;
+}
+
+.caps kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  font: 500 14px var(--mono);
+  color: var(--mac-t1);
+  background: var(--mac-panel);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--mac-line), 0 2px 0 var(--mac-line);
+  animation: cap-press 9s ease-in-out infinite;
+}
+
+.arrow {
+  color: var(--mac-t3);
+}
+
+.started {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mac-t1);
+  background: var(--menu-bg);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--mac-line);
+  animation: started-on 9s ease-in-out infinite;
+}
+
+.started svg {
+  width: 13px;
+  height: 13px;
+}
+
+.endDialog {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  animation: dialog-in 9s ease-in-out infinite;
+}
+
+.fieldCenter {
+  justify-content: center;
+  font: 500 15px var(--mono);
+  letter-spacing: 0.05em;
+}
+
+/* one cycle: the combo is pressed, protection starts, then the end prompt asks for a key */
+@keyframes cap-press {
+  0%,
+  6%,
+  22%,
+  100% {
+    transform: none;
+    background: var(--mac-panel);
+  }
+  9%,
+  18% {
+    transform: translateY(2px);
+    background: color-mix(in srgb, var(--mac-t1) 20%, var(--mac-panel));
+    box-shadow: 0 0 0 1px var(--mac-line), 0 0 0 var(--mac-line);
+  }
+}
+
+@keyframes started-on {
+  0%,
+  16% {
+    opacity: 0.25;
+    transform: translateY(3px);
+  }
+  24%,
+  92% {
+    opacity: 1;
+    transform: none;
+  }
+  98%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(3px);
+  }
+}
+
+@keyframes dialog-in {
+  0%,
+  34% {
+    opacity: 0.25;
+    transform: scale(0.98);
+  }
+  44%,
+  92% {
+    opacity: 1;
+    transform: none;
+  }
+  98%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.98);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reminder,
-  .caret {
+  .caret,
+  .caps kbd,
+  .started,
+  .endDialog {
     animation: none;
   }
 }

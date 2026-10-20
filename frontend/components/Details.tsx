@@ -38,9 +38,9 @@ function useTyping(text: string) {
   return reducedMotion ? text.length : count;
 }
 
-function Field({ children, placeholder }: { children: string; placeholder: string }) {
+function Field({ children, placeholder, center }: { children: string; placeholder: string; center?: boolean }) {
   return (
-    <div className={styles.field}>
+    <div className={center ? `${styles.field} ${styles.fieldCenter}` : styles.field}>
       {children ? <span>{children}</span> : <span className={styles.placeholder}>{placeholder}</span>}
       <span className={styles.caret} />
     </div>
@@ -160,11 +160,150 @@ function ForceQuit() {
   );
 }
 
+// MuzzleIcon.statusImage during a bypass: an outline that fills from the bottom up.
+const MASK = "M4.1 15.2H13.9L16.4 11.3 14.5 2.5H3.5L1.6 11.3Z";
+const MASK_TOP = 15.2;
+const MASK_BOTTOM = 2.5;
+
+function BypassGlyph({ fraction }: { fraction: number }) {
+  const fill = (MASK_TOP - MASK_BOTTOM) * fraction;
+  return (
+    <svg className={styles.bigGlyph} viewBox="0 0 18 18" aria-hidden="true">
+      <defs>
+        <clipPath id="bypass-clip">
+          <path d={MASK} />
+        </clipPath>
+        <mask id="bypass-grille">
+          <rect width="18" height="18" fill="#fff" />
+          <g transform="translate(0 18) scale(1 -1)" stroke="#000" strokeWidth="1.2">
+            <path d="M5.1 6H12.9M5.1 9H12.9M5.1 12H12.9" />
+          </g>
+        </mask>
+      </defs>
+      <g transform="translate(0 18) scale(1 -1)">
+        <path d={MASK} fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinejoin="round" />
+        <g clipPath="url(#bypass-clip)" mask="url(#bypass-grille)">
+          <rect x="1.6" y={MASK_BOTTOM} width="14.8" height={fill} fill="currentColor" />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+const BYPASS_MINUTES = 5;
+
+/** While a bypass runs, the menu-bar icon fills one minute at a time until protection returns. */
+function BypassCountdown() {
+  const reducedMotion = useReducedMotion();
+  const [minute, setMinute] = useState(0);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    let cancelled = false;
+    const timers: number[] = [];
+    const wait = (ms: number) =>
+      new Promise<void>((resolve) => timers.push(window.setTimeout(resolve, ms)));
+
+    (async () => {
+      while (!cancelled) {
+        setMinute(0);
+        await wait(1600);
+        for (let m = 1; m <= BYPASS_MINUTES; m++) {
+          setMinute(m);
+          await wait(m === BYPASS_MINUTES ? 3200 : 1100);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [reducedMotion]);
+
+  const shown = reducedMotion ? 3 : minute;
+  const over = shown === BYPASS_MINUTES;
+  const status = over
+    ? "Blocking 3 websites until 10:41 AM. 0 bypasses left."
+    : "Bypass active until 10:20 AM. 0 bypasses left.";
+
+  return (
+    <div className={styles.bypass}>
+      <div className={styles.slot}>
+        <BypassGlyph fraction={shown / BYPASS_MINUTES} />
+      </div>
+      <div className={styles.ticks}>
+        {Array.from({ length: BYPASS_MINUTES }, (_, i) => (
+          <i key={i} className={i < shown ? styles.tickOn : undefined} />
+        ))}
+      </div>
+      <div className={styles.minutes}>{over ? "Protection restored" : `${shown} of ${BYPASS_MINUTES} min`}</div>
+      <div className={styles.statusPill}>{status}</div>
+    </div>
+  );
+}
+
+/** One shortcut starts a session; ending it asks for the key that only Poke has. */
+function ShortcutStory() {
+  return (
+    <div className={styles.shortcut}>
+      <div className={styles.startRow}>
+        <div className={styles.caps}>
+          {["⌃", "⌥", "⌘", "M"].map((cap) => (
+            <kbd key={cap}>{cap}</kbd>
+          ))}
+        </div>
+        <span className={styles.arrow}>→</span>
+        <div className={styles.started}>
+          <svg viewBox="0 0 14 14" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M7 1a3 3 0 0 0-3 3v1.6H3.6C3 5.6 2.6 6 2.6 6.6v5.2c0 .6.4 1 1 1h6.8c.6 0 1-.4 1-1V6.6c0-.6-.4-1-1-1H10V4a3 3 0 0 0-3-3Zm0 1.4A1.6 1.6 0 0 1 8.6 4v1.6H5.4V4A1.6 1.6 0 0 1 7 2.4Z"
+            />
+          </svg>
+          Protection started
+        </div>
+      </div>
+      <div className={styles.endDialog}>
+        <Alert
+          title="End website blocking?"
+          body="Enter this session’s unlock key to remove Muzzle’s entries from your hosts file. Muzzle will remain available in the menu bar."
+          buttons={
+            <>
+              <span className={styles.button}>Cancel</span>
+              <span className={`${styles.button} ${styles.primary}`}>End protection</span>
+            </>
+          }
+        >
+          <Field center placeholder="Six-digit session code">
+            {""}
+          </Field>
+        </Alert>
+      </div>
+    </div>
+  );
+}
+
 const ITEMS = [
+  {
+    title: "A bypass you can watch run out",
+    body: "During a bypass the menu-bar icon starts as an outline and fills one minute at a time. When it’s full, protection is back. Each bypass uses one of your daily allowance.",
+    art: <BypassCountdown />,
+  },
   {
     title: "A reminder before a bypass ends",
     body: "Two minutes before a bypass runs out, a small floating notice appears and dismisses itself after 12 seconds. A sound is optional.",
     art: <BypassReminder />,
+  },
+  {
+    title: "Extra bypasses need Poke’s approval",
+    body: "Request one from the menu, then enter the six-digit code Poke sends you. It adds one bypass without ending protection, and the code works once.",
+    art: <ApprovalCode />,
+  },
+  {
+    title: "Easy to start, hard to stop",
+    body: "A keyboard shortcut you record, or Control-click on the menu-bar icon, starts a session for your saved websites in one move. Ending an untimed session takes a six-digit key that only goes to Poke, and a timed one can’t be ended early.",
+    art: <ShortcutStory />,
   },
   {
     title: "An optional note for Poke",
@@ -175,11 +314,6 @@ const ITEMS = [
     title: "Not in the Force Quit window",
     body: "Muzzle lives in the menu bar with no Dock icon, so it doesn’t appear when you press ⌘⌥⎋. Quitting the app wouldn’t switch protection off anyway: the background service keeps enforcing it.",
     art: <ForceQuit />,
-  },
-  {
-    title: "Extra bypasses need Poke’s approval",
-    body: "Request one from the menu, then enter the six-digit code Poke sends you. It adds one bypass without ending protection, and the code works once.",
-    art: <ApprovalCode />,
   },
 ];
 
