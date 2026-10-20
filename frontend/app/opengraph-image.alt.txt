@@ -1,0 +1,1 @@
+Muzzle's landing page: a website blocker that stays on, with the macOS menu-bar menu and app window.
