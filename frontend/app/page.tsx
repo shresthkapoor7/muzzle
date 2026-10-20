@@ -1,10 +1,11 @@
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import { AppDemo } from "@/components/AppDemo";
 import { Details } from "@/components/Details";
 import { Downloads } from "@/components/Downloads";
 import { RuleViewer } from "@/components/RuleViewer";
 import { AppleIcon, ArrowUpRightIcon, GitHubIcon } from "@/components/icons";
-import { GITHUB_URL } from "@/lib/links";
+import { GITHUB_URL, POKE_URL } from "@/lib/links";
 
 const STEPS = [
   {
@@ -72,10 +73,26 @@ export default function Home() {
         <section className="hero">
           <div className="wrap hero-inner">
             <h1>
-              <b>A website blocker that stays on.</b>
-              Muzzle is a native macOS menu-bar app with a privileged background service. Timed
-              sessions end on their own; untimed sessions end with a key delivered to Poke.
+              A website blocker that stays{" "}
+              <span className="toggle" aria-hidden="true">
+                <span className="toggle-knob" />
+              </span>
+              <span className="sr-only">on</span>.
             </h1>
+            <p className="hero-sub">
+              Muzzle is a native{" "}
+              <span className="brand">
+                <AppleIcon className="brand-icon" />
+                macOS
+              </span>{" "}
+              menu-bar app with a privileged background service. Timed sessions end on their own;
+              untimed sessions end with a key delivered to{" "}
+              <a className="brand" href={POKE_URL} target="_blank" rel="noreferrer">
+                <span className="brand-icon brand-mask" style={{ "--icon": "url(/poke.png)" } as CSSProperties} />
+                Poke
+              </a>
+              .
+            </p>
             <div className="cta-row">
               <a className="btn" href="#download">
                 <AppleIcon className="btn-icon" />
@@ -201,7 +218,9 @@ export default function Home() {
         <section className="closing" aria-labelledby="closing-title">
           <div className="wrap">
             <h2 id="closing-title">Stay on task.</h2>
-            <p>Muzzle is open source and licensed under AGPL-3.0.</p>
+            <p>
+              Muzzle is open source and licensed under <span className="nowrap">AGPL-3.0</span>.
+            </p>
             <div className="cta-row">
               <a className="btn" href="#download">
                 <AppleIcon className="btn-icon" />

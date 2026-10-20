@@ -2,37 +2,62 @@
 
 .walkthrough {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-  gap: 28px;
-  margin-top: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 40px;
   align-items: stretch;
 }
 
-/* ── steps ─────────────────────────────────────────────── */
+/* ── intro + steps (one column, top aligned) ───────────── */
+.title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.intro {
+  max-width: 460px;
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
 .steps {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  margin-top: 22px;
   list-style: none;
 }
 
-.step {
+.steps li {
   position: relative;
+}
+
+/* a thin rail joins the numbered circles into a timeline */
+.steps li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 34px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--line);
+}
+
+.step {
   display: flex;
   align-items: flex-start;
   gap: 14px;
   width: 100%;
-  padding: 14px 16px;
+  padding: 7px 0;
   text-align: left;
   font: inherit;
   font-size: 14px;
   line-height: 1.5;
   color: var(--faint);
   background: none;
-  border: 1px solid transparent;
-  border-radius: 8px;
+  border: 0;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  transition: color 0.2s;
 }
 
 .step:hover {
@@ -41,13 +66,12 @@
 
 .step[aria-current="step"] {
   color: var(--muted);
-  border-color: var(--line);
-  background: var(--card);
 }
 
 .step:focus-visible {
   outline: 2px solid var(--fg);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .step strong {
@@ -56,17 +80,20 @@
 }
 
 .num {
+  position: relative;
+  z-index: 1;
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
-  margin-top: 1px;
   font: 500 11px var(--mono);
   color: var(--faint);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 50%;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
 }
 
 .step[aria-current="step"] .num {
@@ -76,17 +103,18 @@
 }
 
 .stepText {
+  position: relative;
   flex: 1;
 }
 
-/* fills over the auto-advance interval */
+/* fills under the active step's text over the auto-advance interval */
 .progress {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: -1px;
+  left: 0;
+  right: 0;
+  bottom: -4px;
   height: 1px;
-  background: var(--fg);
+  background: var(--muted);
   transform-origin: left;
   animation: progress 4.5s linear forwards;
 }
@@ -106,11 +134,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 320px;
+  min-height: 300px;
   padding: 24px;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .scene {
@@ -181,7 +209,7 @@
 /* ── alert (step 1) ────────────────────────────────────── */
 .alert {
   display: grid;
-  grid-template-columns: 64px 1fr;
+  grid-template-columns: 64px minmax(0, 1fr);
   gap: 8px 16px;
   width: min(400px, 100%);
   padding: 22px 24px 18px;
@@ -211,6 +239,7 @@
 .alertButtons {
   grid-column: 1 / -1;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 10px;
@@ -219,7 +248,7 @@
 /* ── System Settings (steps 2 and 3) ───────────────────── */
 .settings {
   display: grid;
-  grid-template-columns: 150px 1fr;
+  grid-template-columns: 150px minmax(0, 1fr);
   width: min(440px, 100%);
   min-height: 250px;
   overflow: hidden;
@@ -384,12 +413,84 @@
 }
 
 @media (max-width: 520px) {
-  .settings {
-    grid-template-columns: 110px 1fr;
+  .stage {
+    min-height: 260px;
+    padding: 14px;
   }
 
-  .stage {
+  .alert {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 8px 12px;
     padding: 16px;
+  }
+
+  .alertIcon {
+    width: 48px;
+    height: 48px;
+    border-radius: 11px;
+  }
+
+  .settings {
+    grid-template-columns: 112px minmax(0, 1fr);
+    min-height: 230px;
+  }
+
+  .sidebar {
+    gap: 10px;
+    padding: 10px 6px;
+  }
+
+  .pane {
+    padding: 0 6px;
+    font-size: 11px;
+  }
+
+  .pane i {
+    display: none;
+  }
+
+  .content {
+    padding: 12px;
+  }
+
+  .content h4 {
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+
+  .securityRow {
+    padding: 10px;
+    font-size: 11px;
+  }
+
+  .button {
+    min-width: 0;
+    padding: 0 10px;
+  }
+
+  .auth {
+    padding: 18px 16px 14px;
+  }
+}
+
+/* very narrow: the Settings sidebar becomes a row of chips above the content */
+@media (max-width: 380px) {
+  .alert {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--mac-line);
+  }
+
+  .sidebar ul {
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 }
 

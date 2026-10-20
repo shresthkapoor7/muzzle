@@ -128,37 +128,38 @@ export function FirstLaunch() {
 
   return (
     <div className="note">
-      <h3>First launch</h3>
-      <p>
-        Releases are ad-hoc signed, not Apple-notarized, so macOS may say “Muzzle” Not Opened. If
-        you trust the download, here’s how to open it. Don’t disable Gatekeeper globally.{" "}
-        <a href={OPEN_UNNOTARIZED_URL} target="_blank" rel="noreferrer">
-          Apple’s instructions
-        </a>
-        .
-      </p>
-
       <div className={styles.walkthrough}>
-        <ol className={styles.steps}>
-          {STEPS.map((step, index) => (
-            <li key={index}>
-              <button
-                type="button"
-                className={styles.step}
-                aria-current={index === active ? "step" : undefined}
-                onClick={() => setActive(index)}
-              >
-                <span className={styles.num}>{index + 1}</span>
-                <span className={styles.stepText}>
-                  {step.title} {step.detail}
-                  {index === active && !reducedMotion && (
-                    <span className={styles.progress} key={active} aria-hidden="true" />
-                  )}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ol>
+        <div>
+          <h3 className={styles.title}>First launch</h3>
+          <p className={styles.intro}>
+            Releases are ad-hoc signed, not Apple-notarized, so macOS may say “Muzzle” Not Opened.
+            If you trust the download, here’s how to open it. Don’t disable Gatekeeper globally.{" "}
+            <a href={OPEN_UNNOTARIZED_URL} target="_blank" rel="noreferrer">
+              Apple’s instructions
+            </a>
+            .
+          </p>
+          <ol className={styles.steps}>
+            {STEPS.map((step, index) => (
+              <li key={index}>
+                <button
+                  type="button"
+                  className={styles.step}
+                  aria-current={index === active ? "step" : undefined}
+                  onClick={() => setActive(index)}
+                >
+                  <span className={styles.num}>{index + 1}</span>
+                  <span className={styles.stepText}>
+                    {step.title} {step.detail}
+                    {index === active && !reducedMotion && (
+                      <span className={styles.progress} key={active} aria-hidden="true" />
+                    )}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </div>
         <div className={styles.stage} aria-hidden="true">
           <div key={active} className={styles.scene}>
             {SCENES[active]}

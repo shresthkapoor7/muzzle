@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { DOG_ASCII } from "./dog-ascii";
 
 export const socialImageSize = { width: 1200, height: 630 };
 export const socialImageAlt =
@@ -12,6 +13,9 @@ const regularFont = await readFile(
 );
 const semiboldFont = await readFile(
   join(process.cwd(), "node_modules/@fontsource/geist/files/geist-latin-600-normal.woff"),
+);
+const monoFont = await readFile(
+  join(process.cwd(), "node_modules/@fontsource/geist-mono/files/geist-mono-latin-400-normal.woff"),
 );
 
 // Palette matches the dark macOS recreation on the landing page.
@@ -33,26 +37,25 @@ const C = {
 
 const flex = { display: "flex" } as const;
 
-/** Grayscale impasto: lit fractal noise, darkened so the windows stay the focus. */
-function PaintBackground() {
-  const { width, height } = socialImageSize;
+/** The same ASCII dog in a muzzle that sits behind the landing page, a little stronger for a card. */
+function DogBackground() {
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ position: "absolute", left: 0, top: 0 }}>
-      <defs>
-        <filter id="paint" x="0" y="0" width="100%" height="100%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.011" numOctaves="3" seed="4" result="noise" />
-          <feDiffuseLighting in="noise" surfaceScale="16" diffuseConstant="1.3" lightingColor="#ffffff" result="lit">
-            <feDistantLight azimuth="225" elevation="52" />
-          </feDiffuseLighting>
-          <feComponentTransfer in="lit" result="contrast">
-            <feFuncR type="gamma" amplitude="0.62" exponent="1.7" offset="0" />
-            <feFuncG type="gamma" amplitude="0.62" exponent="1.7" offset="0" />
-            <feFuncB type="gamma" amplitude="0.62" exponent="1.7" offset="0" />
-          </feComponentTransfer>
-        </filter>
-      </defs>
-      <rect width={width} height={height} filter="url(#paint)" />
-    </svg>
+    <div
+      style={{
+        ...flex,
+        position: "absolute",
+        right: -34,
+        top: -42,
+        fontFamily: "Geist Mono",
+        fontSize: 9.2,
+        lineHeight: "9.2px",
+        whiteSpace: "pre",
+        color: "#ffffff",
+        opacity: 0.42,
+      }}
+    >
+      {DOG_ASCII}
+    </div>
   );
 }
 
@@ -97,9 +100,9 @@ function AppWindow() {
         ...flex,
         flexDirection: "column",
         position: "absolute",
-        left: 72,
+        left: 56,
         top: 54,
-        width: 628,
+        width: 486,
         height: 700,
         background: C.window,
         borderRadius: 16,
@@ -149,22 +152,6 @@ function AppWindow() {
   );
 }
 
-const MENU: { text: string; dim?: boolean; sep?: boolean }[] = [
-  { text: "Muzzle", dim: true },
-  { text: "Blocking 3 websites until 10:11 AM. 1 bypass left.", dim: true },
-  { text: "Bypasses renew Oct 21, 2026 at 9:41 AM", dim: true },
-  { text: "", sep: true },
-  { text: "Manage protected websites…" },
-  { text: "", sep: true },
-  { text: "Request extra bypass from Poke…" },
-  { text: "Enter bypass approval code…" },
-  { text: "", sep: true },
-  { text: "Bypass… (1 left)" },
-  { text: "", sep: true },
-  { text: "Blocking service: running", dim: true },
-  { text: "Check for Updates…" },
-];
-
 /** BypassWarningController's floating panel, shown two minutes before a bypass ends. */
 function Reminder() {
   return (
@@ -173,8 +160,8 @@ function Reminder() {
         ...flex,
         alignItems: "flex-start",
         position: "absolute",
-        left: 746,
-        top: 410,
+        left: 760,
+        top: 470,
         width: 372,
         padding: 18,
         gap: 14,
@@ -198,42 +185,11 @@ function Reminder() {
   );
 }
 
-function StatusMenu() {
-  return (
-    <div
-      style={{
-        ...flex,
-        flexDirection: "column",
-        position: "absolute",
-        left: 746,
-        top: 54,
-        width: 372,
-        padding: 6,
-        background: C.menu,
-        borderRadius: 12,
-        border: "1px solid rgba(255,255,255,0.14)",
-        boxShadow: "0 24px 60px rgba(0,0,0,0.6)",
-        color: C.t1,
-      }}
-    >
-      {MENU.map((item, index) =>
-        item.sep ? (
-          <div key={index} style={{ ...flex, height: 1, margin: "6px 0", background: C.menuSep }} />
-        ) : (
-          <div key={index} style={{ ...flex, padding: "4px 14px", fontSize: 14.5, color: item.dim ? C.menuDim : C.t1 }}>
-            {item.text}
-          </div>
-        ),
-      )}
-    </div>
-  );
-}
-
 export function renderSocialImage() {
   return new ImageResponse(
     (
-      <div style={{ ...flex, position: "relative", width: "100%", height: "100%", background: "#161616", fontFamily: "Geist", overflow: "hidden" }}>
-        <PaintBackground />
+      <div style={{ ...flex, position: "relative", width: "100%", height: "100%", backgroundColor: "#0d0d0d", backgroundImage: "radial-gradient(ellipse at 78% 38%, #232323 0%, #0d0d0d 70%)", fontFamily: "Geist", overflow: "hidden" }}>
+        <DogBackground />
         {/* vignette keeps the edges dark so the windows stand out */}
         <div
           style={{
@@ -243,11 +199,10 @@ export function renderSocialImage() {
             top: 0,
             width: "100%",
             height: "100%",
-            backgroundImage: "radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 35%, rgba(0,0,0,0.55) 100%)",
+            backgroundImage: "radial-gradient(ellipse at 60% 52%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.6) 100%)",
           }}
         />
         <AppWindow />
-        <StatusMenu />
         <Reminder />
       </div>
     ),
@@ -256,6 +211,7 @@ export function renderSocialImage() {
       fonts: [
         { name: "Geist", data: regularFont, weight: 400, style: "normal" },
         { name: "Geist", data: semiboldFont, weight: 600, style: "normal" },
+        { name: "Geist Mono", data: monoFont, weight: 400, style: "normal" },
       ],
     },
   );
